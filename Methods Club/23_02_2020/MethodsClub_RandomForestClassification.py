@@ -1,5 +1,5 @@
 # Random Forest Classification - Template code by Mahdad
-''' PLEASE NOTE: 
+''' PLEASE NOTE : 
     -You need to make some changes to make this code work!
     -In case you cannot import a certain library it should be installed on your
      pc. 
@@ -9,6 +9,7 @@
      only section you need to change for using another machine learning method 
      is "STEP 2". Most of the rest of steps remain identical.
     '''
+    
 ## STEP 0: Importing the libraries ##
 import numpy as np                     
 import matplotlib.pyplot as plt            
