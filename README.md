@@ -30,7 +30,7 @@ This is the main method to extract features and then use the following methods o
         1) X        : Concatenation of all featureset after random permutation.
         2) y        : Relevant labels of "X".
 
-## 1.2 FeatureExtraction_per_subject(): 
+## 1.2 FeatureExtraction_per_subject(Input_data): 
 This is the main method to extract features and then use the following methods of supervised machine learning algorithms to classify epochs. * This method is useful to see the hypnogram and featuresets PER SUBJECT or per trial.*
     
     INPUTS: 
