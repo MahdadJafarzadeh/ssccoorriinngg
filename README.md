@@ -20,8 +20,8 @@ Since reading EDF files is always time consuming it is always recommended by us 
         2) channel  : channel of interest, e.g. 'fp2-M1'
         3) T        : window size (default is 30 secs as in sleep research)
         4) fs       : sampling frequency (Hz)
-## 1. FeatureExtraction(): 
-This is the main method to extract features and then use the following methods of supervised machine learning algorithms to classify epochs.
+## 1.1 FeatureExtraction(): 
+This is the main method to extract features and then use the following methods of supervised machine learning algorithms to classify epochs. * This method combines the whole existing data which is fed in, extract features of each observation and randomly permute them in the end.*
     
     INPUTS: 
             It uses global inputs from ML_Depression class, so, doesn't require additional inputs.
@@ -29,6 +29,17 @@ This is the main method to extract features and then use the following methods o
     OUTPUTS:
         1) X        : Concatenation of all featureset after random permutation.
         2) y        : Relevant labels of "X".
+
+## 1.2 FeatureExtraction_per_subject(): 
+This is the main method to extract features and then use the following methods of supervised machine learning algorithms to classify epochs. * This method is useful to see the hypnogram and featuresets PER SUBJECT or per trial.*
+    
+    INPUTS: 
+        1) Input_data: is the .h5 file which hast to be already loaded.
+        
+    OUTPUTS:
+    Outputs are in the form of dictionary.
+        1) Featureset        : Concatenation of all featureset after random permutation.
+
 
 ## 2. Classifiers      
         
