@@ -15,7 +15,7 @@ from ssccoorriinngg import ssccoorriinngg
 
 #%% Picking featureset of interest and apply classification
 Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
-path   = 'P:/3013080.02/ml_project/scripts/1D_TimeSeries/features/'
+path   = 'C:/PhD/ML in depression/'
 fname  = 'feat42_Fp1-Fp2_train'
 feats  = 'featureset'
 labels = 'labels'
@@ -41,10 +41,10 @@ def create_network(units2=20,unit1=16):
     network.add(layers.Dense(units=units2, activation='relu'))
 
     # Add fully connected layer with a sigmoid activation function
-    network.add(layers.Dense(units=1, activation='sigmoid'))
+    network.add(layers.Dense(units=4, activation='sigmoid'))
 
     # Compile neural network
-    network.compile(loss='binary_crossentropy', # Cross-entropy
+    network.compile(loss='crossentropy', # Cross-entropy
                     optimizer='adam', # Root Mean Square Propagation
                     metrics=['accuracy']) # Accuracy performance metric
     

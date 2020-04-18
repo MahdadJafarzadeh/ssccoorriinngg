@@ -6,34 +6,34 @@ from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall
 import h5py
 import time
 from ssccoorriinngg import ssccoorriinngg
+import numpy as np
+from sklearn.model_selection import cross_validate
 
-#%% Test Section: Choose the file of interest
-fname = ("D:/1D_TimeSeries/raw_EEG/without artefact/train_test/tr90_all_Fp1-Fp2.h5") #REM --> Fp1-M2
-ch = 'Fp1-Fp2'
-# Defining the object of ML_Depression class
-Object = ssccoorriinngg(fname, ch, fs = 200, T = 30)
-# Extract features
-X_train, X_test, y_train, y_test = Object.FeatureExtraction() 
 
-#Feature Selection
-#ranks, Feat_selected = Object.FeatSelect_Boruta(X, y, max_depth = 7)
+#%% Picking featureset of interest and apply classification
+Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
+path   = 'C:/PhD/ML in depression/'
+fname  = 'feat42_Fp1-Fp2_train'
+feats  = 'featureset'
+labels = 'labels'
+# Train set
+X_train, y_train   = Object.LoadFeatureSet(path, fname, feats, labels)
+# Test set
+fname  = 'feat42_Fp1-Fp2_test'
+X_test, y_test   = Object.LoadFeatureSet(path, fname, feats, labels)
+
 # Define the scoring criteria:
 scoring = {'accuracy' : make_scorer(accuracy_score), 
            'precision' : make_scorer(precision_score),
            'recall' : make_scorer(recall_score), 
            'f1_score' : make_scorer(f1_score)}   
-# Cross-validation using SVM
-results_SVM = Object.KernelSVM_Modelling(X_train, y_train,X_test, y_test, scoring = scoring, cv = 10, kernel = 'rbf')
-# Cross-validation using logistic regression
-results_LR  = Object.LogisticRegression_Modelling(X_train, y_train, scoring = scoring, cv = 10)
 # Cross-validation using logistic Random Forests
-results_RF  = Object.RandomForest_Modelling(X_train, y_train, scoring = scoring, n_estimators = 200, cv = 10)
+y_pred_RF  = Object.RandomForest_Modelling(X_train, y_train, X_test, y_test, scoring = scoring, n_estimators = 500, cv = 10)
+Acc, Recall, prec, f1_sc = Object.multi_label_confusion_matrix(y_test, y_pred_RF)
 # Cross-validation using XGBoost
-results_xgb = Object.XGB_Modelling(X_train, y_train, n_estimators = 250, cv = 10, 
-                                      max_depth = 3,learning_rate = .1,
-                                      scoring = scoring)
-
-
+y_pred_xgb  = Object.XGB_Modelling(X_train, y_train,X_test, y_test, scoring, n_estimators = 1000, 
+                      cv = 10 , max_depth=3, learning_rate=.1)
+Acc, Recall, prec, f1_sc = Object.multi_label_confusion_matrix(y_test, y_pred_xgb)
 #%% Outcome measures
 # Defien required metrics here:
 Metrics = ['test_accuracy', 'test_precision', 'test_recall', 'test_f1_score']

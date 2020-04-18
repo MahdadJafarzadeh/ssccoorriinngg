@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>entropy.entropy &#8212; entropy 0.1.1 documentation</title>
+    <link rel="stylesheet" href="../../_static/bootstrap-sphinx.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/style.css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script type="text/javascript" src="../../_static/copybutton.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="shortcut icon" href="../../_static/entropy.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script type="text/javascript" src="../../_static/js/jquery-1.11.0.min.js "></script>
+<script type="text/javascript" src="../../_static/js/jquery-fix.js "></script>
+<script type="text/javascript" src="../../_static/bootstrap-3.3.7/js/bootstrap.min.js "></script>
+<script type="text/javascript" src="../../_static/bootstrap-sphinx.js "></script>
+
+  </head><body>
+
+  <div id="navbar" class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="../../index.html"><span><img src="../../_static/entropy_128x128.png"></span>
+          entropy</a>
+        <span class="navbar-text navbar-version pull-left"><b>0.1.1</b></span>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="../../api.html">API</a></li>
+                <li><a href="../../changelog.html">What's new</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="../../index.html">Site <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc"></ul>
+</li>
+              
+            
+            
+            
+            
+            
+          </ul>
+
+          
+            
+<form class="navbar-form navbar-right" action="../../search.html" method="get">
+ <div class="form-group">
+  <input type="text" name="q" class="form-control" placeholder="Search" />
+ </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+          
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+    <div class="body col-md-12 content" role="main">
+      
+  <h1>Source code for entropy.entropy</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numba</span> <span class="k">import</span> <span class="n">jit</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="k">import</span> <span class="n">factorial</span><span class="p">,</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">sklearn.neighbors</span> <span class="k">import</span> <span class="n">KDTree</span>
+<span class="kn">from</span> <span class="nn">scipy.signal</span> <span class="k">import</span> <span class="n">periodogram</span><span class="p">,</span> <span class="n">welch</span>
+
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="k">import</span> <span class="n">_embed</span>
+
+<span class="nb">all</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;perm_entropy&#39;</span><span class="p">,</span> <span class="s1">&#39;spectral_entropy&#39;</span><span class="p">,</span> <span class="s1">&#39;svd_entropy&#39;</span><span class="p">,</span> <span class="s1">&#39;app_entropy&#39;</span><span class="p">,</span>
+       <span class="s1">&#39;sample_entropy&#39;</span><span class="p">,</span> <span class="s1">&#39;lziv_complexity&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="perm_entropy"><a class="viewcode-back" href="../../generated/entropy.perm_entropy.html#entropy.perm_entropy">[docs]</a><span class="k">def</span> <span class="nf">perm_entropy</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">delay</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Permutation Entropy.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : list or np.array</span>
+<span class="sd">        One-dimensional time series of shape (n_times)</span>
+<span class="sd">    order : int</span>
+<span class="sd">        Order of permutation entropy. Default is 3.</span>
+<span class="sd">    delay : int</span>
+<span class="sd">        Time delay (lag). Default is 1.</span>
+<span class="sd">    normalize : bool</span>
+<span class="sd">        If True, divide by log2(order!) to normalize the entropy between 0</span>
+<span class="sd">        and 1. Otherwise, return the permutation entropy in bit.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pe : float</span>
+<span class="sd">        Permutation Entropy.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The permutation entropy is a complexity measure for time-series first</span>
+<span class="sd">    introduced by Bandt and Pompe in 2002.</span>
+
+<span class="sd">    The permutation entropy of a signal :math:`x` is defined as:</span>
+
+<span class="sd">    .. math:: H = -\\sum p(\\pi)log_2(\\pi)</span>
+
+<span class="sd">    where the sum runs over all :math:`n!` permutations :math:`\\pi` of order</span>
+<span class="sd">    :math:`n`. This is the information contained in comparing :math:`n`</span>
+<span class="sd">    consecutive values of the time series. It is clear that</span>
+<span class="sd">    :math:`0 ≤ H (n) ≤ log_2(n!)` where the lower bound is attained for an</span>
+<span class="sd">    increasing or decreasing sequence of values, and the upper bound for a</span>
+<span class="sd">    completely random system where all :math:`n!` possible permutations appear</span>
+<span class="sd">    with the same probability.</span>
+
+<span class="sd">    The embedded matrix :math:`Y` is created by:</span>
+
+<span class="sd">    .. math:: y(i)=[x_i,x_{i+delay}, ...,x_{i+(order-1) * delay}]</span>
+
+<span class="sd">    .. math:: Y=[y(1),y(2),...,y(N-(order-1))*delay)]^T</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    Bandt, Christoph, and Bernd Pompe. &quot;Permutation entropy: a</span>
+<span class="sd">    natural complexity measure for time series.&quot; Physical review letters</span>
+<span class="sd">    88.17 (2002): 174102.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Permutation entropy with order 2</span>
+
+<span class="sd">    &gt;&gt;&gt; from entropy import perm_entropy</span>
+<span class="sd">    &gt;&gt;&gt; x = [4, 7, 9, 10, 6, 11, 3]</span>
+<span class="sd">    &gt;&gt;&gt; # Return a value in bit between 0 and log2(factorial(order))</span>
+<span class="sd">    &gt;&gt;&gt; print(perm_entropy(x, order=2))</span>
+<span class="sd">    0.9182958340544896</span>
+
+<span class="sd">    Normalized permutation entropy with order 3</span>
+
+<span class="sd">    &gt;&gt;&gt; from entropy import perm_entropy</span>
+<span class="sd">    &gt;&gt;&gt; x = [4, 7, 9, 10, 6, 11, 3]</span>
+<span class="sd">    &gt;&gt;&gt; # Return a value comprised between 0 and 1.</span>
+<span class="sd">    &gt;&gt;&gt; print(perm_entropy(x, order=3, normalize=True))</span>
+<span class="sd">    0.5887621559162939</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">ran_order</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+    <span class="n">hashmult</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">ran_order</span><span class="p">)</span>
+    <span class="c1"># Embed x and sort the order of permutations</span>
+    <span class="n">sorted_idx</span> <span class="o">=</span> <span class="n">_embed</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">,</span> <span class="n">delay</span><span class="o">=</span><span class="n">delay</span><span class="p">)</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s1">&#39;quicksort&#39;</span><span class="p">)</span>
+    <span class="c1"># Associate unique integer to each permutations</span>
+    <span class="n">hashval</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">sorted_idx</span><span class="p">,</span> <span class="n">hashmult</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># Return the counts</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">hashval</span><span class="p">,</span> <span class="n">return_counts</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># Use np.true_divide for Python 2 compatibility</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">true_divide</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+    <span class="n">pe</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">p</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">normalize</span><span class="p">:</span>
+        <span class="n">pe</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">factorial</span><span class="p">(</span><span class="n">order</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">pe</span></div>
+
+
+<div class="viewcode-block" id="spectral_entropy"><a class="viewcode-back" href="../../generated/entropy.spectral_entropy.html#entropy.spectral_entropy">[docs]</a><span class="k">def</span> <span class="nf">spectral_entropy</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">sf</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;fft&#39;</span><span class="p">,</span> <span class="n">nperseg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Spectral Entropy.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : list or np.array</span>
+<span class="sd">        One-dimensional time series of shape (n_times)</span>
+<span class="sd">    sf : float</span>
+<span class="sd">        Sampling frequency, in Hz.</span>
+<span class="sd">    method : str</span>
+<span class="sd">        Spectral estimation method:</span>
+
+<span class="sd">        * ``&#39;fft&#39;`` : Fourier Transform (:py:func:`scipy.signal.periodogram`)</span>
+<span class="sd">        * ``&#39;welch&#39;`` : Welch periodogram (:py:func:`scipy.signal.welch`)</span>
+<span class="sd">    nperseg : int or None</span>
+<span class="sd">        Length of each FFT segment for Welch method.</span>
+<span class="sd">        If None (default), uses scipy default of 256 samples.</span>
+<span class="sd">    normalize : bool</span>
+<span class="sd">        If True, divide by log2(psd.size) to normalize the spectral entropy</span>
+<span class="sd">        between 0 and 1. Otherwise, return the spectral entropy in bit.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    se : float</span>
+<span class="sd">        Spectral Entropy</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Spectral Entropy is defined to be the Shannon entropy of the power</span>
+<span class="sd">    spectral density (PSD) of the data:</span>
+
+<span class="sd">    .. math:: H(x, sf) =  -\\sum_{f=0}^{f_s/2} P(f) log_2[P(f)]</span>
+
+<span class="sd">    Where :math:`P` is the normalised PSD, and :math:`f_s` is the sampling</span>
+<span class="sd">    frequency.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    Inouye, T. et al. (1991). Quantification of EEG irregularity by</span>
+<span class="sd">    use of the entropy of the power spectrum. Electroencephalography</span>
+<span class="sd">    and clinical neurophysiology, 79(3), 204-210.</span>
+
+<span class="sd">    https://en.wikipedia.org/wiki/Spectral_density</span>
+
+<span class="sd">    https://en.wikipedia.org/wiki/Welch%27s_method</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Spectral entropy of a pure sine using FFT</span>
+
+<span class="sd">    &gt;&gt;&gt; from entropy import spectral_entropy</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; sf, f, dur = 100, 1, 4</span>
+<span class="sd">    &gt;&gt;&gt; N = sf * dur # Total number of discrete samples</span>
+<span class="sd">    &gt;&gt;&gt; t = np.arange(N) / sf # Time vector</span>
+<span class="sd">    &gt;&gt;&gt; x = np.sin(2 * np.pi * f * t)</span>
+<span class="sd">    &gt;&gt;&gt; np.round(spectral_entropy(x, sf, method=&#39;fft&#39;), 2)</span>
+<span class="sd">    0.0</span>
+
+<span class="sd">    Spectral entropy of a random signal using Welch&#39;s method</span>
+
+<span class="sd">    &gt;&gt;&gt; from entropy import spectral_entropy</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; np.random.seed(42)</span>
+<span class="sd">    &gt;&gt;&gt; x = np.random.rand(3000)</span>
+<span class="sd">    &gt;&gt;&gt; spectral_entropy(x, sf=100, method=&#39;welch&#39;)</span>
+<span class="sd">    6.980045662371389</span>
+
+<span class="sd">    Normalized spectral entropy</span>
+
+<span class="sd">    &gt;&gt;&gt; spectral_entropy(x, sf=100, method=&#39;welch&#39;, normalize=True)</span>
+<span class="sd">    0.9955526198316071</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="c1"># Compute and normalize power spectrum</span>
+    <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;fft&#39;</span><span class="p">:</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">psd</span> <span class="o">=</span> <span class="n">periodogram</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">sf</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;welch&#39;</span><span class="p">:</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">psd</span> <span class="o">=</span> <span class="n">welch</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">sf</span><span class="p">,</span> <span class="n">nperseg</span><span class="o">=</span><span class="n">nperseg</span><span class="p">)</span>
+    <span class="n">psd_norm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">psd</span><span class="p">,</span> <span class="n">psd</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+    <span class="n">se</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">psd_norm</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">psd_norm</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">normalize</span><span class="p">:</span>
+        <span class="n">se</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">psd_norm</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">se</span></div>
+
+
+<div class="viewcode-block" id="svd_entropy"><a class="viewcode-back" href="../../generated/entropy.svd_entropy.html#entropy.svd_entropy">[docs]</a><span class="k">def</span> <span class="nf">svd_entropy</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">delay</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Singular Value Decomposition entropy.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : list or np.array</span>
+<span class="sd">        One-dimensional time series of shape (n_times)</span>
+<span class="sd">    order : int</span>
+<span class="sd">        Order of SVD entropy (= length of the embedding dimension).</span>
+<span class="sd">        Default is 3.</span>
+<span class="sd">    delay : int</span>
+<span class="sd">        Time delay (lag). Default is 1.</span>
+<span class="sd">    normalize : bool</span>
+<span class="sd">        If True, divide by log2(order!) to normalize the entropy between 0</span>
+<span class="sd">        and 1. Otherwise, return the permutation entropy in bit.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    svd_e : float</span>
+<span class="sd">        SVD Entropy</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    SVD entropy is an indicator of the number of eigenvectors that are needed</span>
+<span class="sd">    for an adequate explanation of the data set. In other words, it measures</span>
+<span class="sd">    the dimensionality of the data.</span>
+
+<span class="sd">    The SVD entropy of a signal :math:`x` is defined as:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        H = -\\sum_{i=1}^{M} \\overline{\\sigma}_i log_2(\\overline{\\sigma}_i)</span>
+
+<span class="sd">    where :math:`M` is the number of singular values of the embedded matrix</span>
+<span class="sd">    :math:`Y` and :math:`\\sigma_1, \\sigma_2, ..., \\sigma_M` are the</span>
+<span class="sd">    normalized singular values of :math:`Y`.</span>
+
+<span class="sd">    The embedded matrix :math:`Y` is created by:</span>
+
+<span class="sd">    .. math:: y(i)=[x_i,x_{i+delay}, ...,x_{i+(order-1) * delay}]</span>
+
+<span class="sd">    .. math:: Y=[y(1),y(2),...,y(N-(order-1))*delay)]^T</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    SVD entropy with order 2</span>
+
+<span class="sd">    &gt;&gt;&gt; from entropy import svd_entropy</span>
+<span class="sd">    &gt;&gt;&gt; x = [4, 7, 9, 10, 6, 11, 3]</span>
+<span class="sd">    &gt;&gt;&gt; # Return a value in bit between 0 and log2(factorial(order))</span>
+<span class="sd">    &gt;&gt;&gt; print(svd_entropy(x, order=2))</span>
+<span class="sd">    0.7618909465130066</span>
+
+<span class="sd">    Normalized SVD entropy with order 3</span>
+
+<span class="sd">    &gt;&gt;&gt; from entropy import svd_entropy</span>
+<span class="sd">    &gt;&gt;&gt; x = [4, 7, 9, 10, 6, 11, 3]</span>
+<span class="sd">    &gt;&gt;&gt; # Return a value comprised between 0 and 1.</span>
+<span class="sd">    &gt;&gt;&gt; print(svd_entropy(x, order=3, normalize=True))</span>
+<span class="sd">    0.6870083043946692</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">mat</span> <span class="o">=</span> <span class="n">_embed</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">,</span> <span class="n">delay</span><span class="o">=</span><span class="n">delay</span><span class="p">)</span>
+    <span class="n">W</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">svd</span><span class="p">(</span><span class="n">mat</span><span class="p">,</span> <span class="n">compute_uv</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="c1"># Normalize the singular values</span>
+    <span class="n">W</span> <span class="o">/=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">W</span><span class="p">)</span>
+    <span class="n">svd_e</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">W</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">W</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">normalize</span><span class="p">:</span>
+        <span class="n">svd_e</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">svd_e</span></div>
+
+
+<span class="k">def</span> <span class="nf">_app_samp_entropy</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;chebyshev&#39;</span><span class="p">,</span> <span class="n">approximate</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Utility function for `app_entropy`` and `sample_entropy`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_all_metrics</span> <span class="o">=</span> <span class="n">KDTree</span><span class="o">.</span><span class="n">valid_metrics</span>
+    <span class="k">if</span> <span class="n">metric</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_all_metrics</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The given metric (</span><span class="si">%s</span><span class="s1">) is not valid. The valid &#39;</span>
+                         <span class="s1">&#39;metric names are: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">metric</span><span class="p">,</span> <span class="n">_all_metrics</span><span class="p">))</span>
+    <span class="n">phi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="mf">0.2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">ddof</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># compute phi(order, r)</span>
+    <span class="n">_emb_data1</span> <span class="o">=</span> <span class="n">_embed</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">approximate</span><span class="p">:</span>
+        <span class="n">emb_data1</span> <span class="o">=</span> <span class="n">_emb_data1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">emb_data1</span> <span class="o">=</span> <span class="n">_emb_data1</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">count1</span> <span class="o">=</span> <span class="n">KDTree</span><span class="p">(</span><span class="n">emb_data1</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="n">metric</span><span class="p">)</span><span class="o">.</span><span class="n">query_radius</span><span class="p">(</span><span class="n">emb_data1</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span>
+                                                           <span class="n">count_only</span><span class="o">=</span><span class="kc">True</span>
+                                                           <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="c1"># compute phi(order + 1, r)</span>
+    <span class="n">emb_data2</span> <span class="o">=</span> <span class="n">_embed</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">count2</span> <span class="o">=</span> <span class="n">KDTree</span><span class="p">(</span><span class="n">emb_data2</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="n">metric</span><span class="p">)</span><span class="o">.</span><span class="n">query_radius</span><span class="p">(</span><span class="n">emb_data2</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span>
+                                                           <span class="n">count_only</span><span class="o">=</span><span class="kc">True</span>
+                                                           <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">approximate</span><span class="p">:</span>
+        <span class="n">phi</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">count1</span> <span class="o">/</span> <span class="n">emb_data1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="n">phi</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">count2</span> <span class="o">/</span> <span class="n">emb_data2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">phi</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">count1</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">emb_data1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">phi</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">count2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">emb_data2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">phi</span>
+
+
+<span class="nd">@jit</span><span class="p">(</span><span class="s1">&#39;f8(f8[:], i4, f8)&#39;</span><span class="p">,</span> <span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_numba_sampen</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">mm</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">r</span><span class="o">=</span><span class="mf">0.2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fast evaluation of the sample entropy using Numba.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">size</span>
+    <span class="n">n1</span> <span class="o">=</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">mm</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">mm_dbld</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">mm</span>
+
+    <span class="c1"># Define threshold</span>
+    <span class="n">r</span> <span class="o">*=</span> <span class="n">x</span><span class="o">.</span><span class="n">std</span><span class="p">()</span>
+
+    <span class="c1"># initialize the lists</span>
+    <span class="n">run</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+    <span class="n">run1</span> <span class="o">=</span> <span class="n">run</span><span class="p">[:]</span>
+    <span class="n">r1</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">*</span> <span class="n">mm_dbld</span><span class="p">)</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">mm</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">a</span><span class="p">[:]</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">a</span><span class="p">[:]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n1</span><span class="p">):</span>
+        <span class="n">nj</span> <span class="o">=</span> <span class="n">n1</span> <span class="o">-</span> <span class="n">i</span>
+
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nj</span><span class="p">):</span>
+            <span class="n">j</span> <span class="o">=</span> <span class="n">jj</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">&lt;</span> <span class="n">r</span><span class="p">:</span>
+                <span class="n">run</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">run1</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">m1</span> <span class="o">=</span> <span class="n">mm</span> <span class="k">if</span> <span class="n">mm</span> <span class="o">&lt;</span> <span class="n">run</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="k">else</span> <span class="n">run</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m1</span><span class="p">):</span>
+                    <span class="n">a</span><span class="p">[</span><span class="n">m</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="n">n1</span><span class="p">:</span>
+                        <span class="n">b</span><span class="p">[</span><span class="n">m</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">run</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">mm_dbld</span><span class="p">):</span>
+            <span class="n">run1</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">run</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+            <span class="n">r1</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="n">n</span> <span class="o">*</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">run</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">nj</span> <span class="o">&gt;</span> <span class="n">mm_dbld</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">mm_dbld</span><span class="p">,</span> <span class="n">nj</span><span class="p">):</span>
+                <span class="n">run1</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">run</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+
+    <span class="n">m</span> <span class="o">=</span> <span class="n">mm</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="k">while</span> <span class="n">m</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">b</span><span class="p">[</span><span class="n">m</span><span class="p">]</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">m</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">n</span> <span class="o">*</span> <span class="n">n1</span> <span class="o">/</span> <span class="mi">2</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">float</span><span class="p">(</span><span class="n">aa</span><span class="p">)</span> <span class="k">for</span> <span class="n">aa</span> <span class="ow">in</span> <span class="n">a</span><span class="p">])</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">float</span><span class="p">(</span><span class="n">bb</span><span class="p">)</span> <span class="k">for</span> <span class="n">bb</span> <span class="ow">in</span> <span class="n">b</span><span class="p">])</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">true_divide</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+    <span class="k">return</span> <span class="o">-</span><span class="n">log</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="app_entropy"><a class="viewcode-back" href="../../generated/entropy.app_entropy.html#entropy.app_entropy">[docs]</a><span class="k">def</span> <span class="nf">app_entropy</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;chebyshev&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Approximate Entropy.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : list or np.array</span>
+<span class="sd">        One-dimensional time series of shape (n_times).</span>
+<span class="sd">    order : int</span>
+<span class="sd">        Embedding dimension. Default is 2.</span>
+<span class="sd">    metric : str</span>
+<span class="sd">        Name of the distance metric function used with</span>
+<span class="sd">        :py:class:`sklearn.neighbors.KDTree`. Default is</span>
+<span class="sd">        `Chebyshev &lt;https://en.wikipedia.org/wiki/Chebyshev_distance&gt;`_.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ae : float</span>
+<span class="sd">        Approximate Entropy.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Approximate entropy is a technique used to quantify the amount of</span>
+<span class="sd">    regularity and the unpredictability of fluctuations over time-series data.</span>
+<span class="sd">    Smaller values indicates that the data is more regular and predictable.</span>
+
+<span class="sd">    The value of :math:`r` is set to :math:`0.2 * \\texttt{std}(x)`.</span>
+
+<span class="sd">    Code adapted from the `mne-features &lt;https://mne.tools/mne-features/&gt;`_</span>
+<span class="sd">    package by Jean-Baptiste Schiratti and Alexandre Gramfort.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    Richman, J. S. et al. (2000). Physiological time-series analysis</span>
+<span class="sd">    using approximate entropy and sample entropy. American Journal of</span>
+<span class="sd">    Physiology-Heart and Circulatory Physiology, 278(6), H2039-H2049.</span>
+
+<span class="sd">    https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.DistanceMetric.html</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from entropy import app_entropy</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; np.random.seed(1234567)</span>
+<span class="sd">    &gt;&gt;&gt; x = np.random.rand(3000)</span>
+<span class="sd">    &gt;&gt;&gt; print(app_entropy(x, order=2))</span>
+<span class="sd">    2.0754913760787277</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">phi</span> <span class="o">=</span> <span class="n">_app_samp_entropy</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="n">metric</span><span class="p">,</span> <span class="n">approximate</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">phi</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">phi</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="sample_entropy"><a class="viewcode-back" href="../../generated/entropy.sample_entropy.html#entropy.sample_entropy">[docs]</a><span class="k">def</span> <span class="nf">sample_entropy</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;chebyshev&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Sample Entropy.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : list or np.array</span>
+<span class="sd">        One-dimensional time series of shape (n_times).</span>
+<span class="sd">    order : int</span>
+<span class="sd">        Embedding dimension. Default is 2.</span>
+<span class="sd">    metric : str</span>
+<span class="sd">        Name of the distance metric function used with</span>
+<span class="sd">        :py:class:`sklearn.neighbors.KDTree`. Default is</span>
+<span class="sd">        `Chebyshev &lt;https://en.wikipedia.org/wiki/Chebyshev_distance&gt;`_.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    se : float</span>
+<span class="sd">        Sample Entropy.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Sample entropy is a modification of approximate entropy, used for assessing</span>
+<span class="sd">    the complexity of physiological time-series signals. It has two advantages</span>
+<span class="sd">    over approximate entropy: data length independence and a relatively</span>
+<span class="sd">    trouble-free implementation. Large values indicate high complexity whereas</span>
+<span class="sd">    smaller values characterize more self-similar and regular signals.</span>
+
+<span class="sd">    The sample entropy of a signal :math:`x` is defined as:</span>
+
+<span class="sd">    .. math:: H(x, m, r) = -log\\frac{C(m + 1, r)}{C(m, r)}</span>
+
+<span class="sd">    where :math:`m` is the embedding dimension (= order), :math:`r` is</span>
+<span class="sd">    the radius of the neighbourhood (default = :math:`0.2 * \\text{std}(x)`),</span>
+<span class="sd">    :math:`C(m + 1, r)` is the number of embedded vectors of length</span>
+<span class="sd">    :math:`m + 1` having a</span>
+<span class="sd">    `Chebyshev distance &lt;https://en.wikipedia.org/wiki/Chebyshev_distance&gt;`_</span>
+<span class="sd">    inferior to :math:`r` and :math:`C(m, r)` is the number of embedded</span>
+<span class="sd">    vectors of length :math:`m` having a Chebyshev distance inferior to</span>
+<span class="sd">    :math:`r`.</span>
+
+<span class="sd">    Note that if ``metric == &#39;chebyshev&#39;`` and ``len(x) &lt; 5000`` points,</span>
+<span class="sd">    then the sample entropy is computed using a fast custom Numba script.</span>
+<span class="sd">    For other distance metric or longer time-series, the sample entropy is</span>
+<span class="sd">    computed using a code from the</span>
+<span class="sd">    `mne-features &lt;https://mne.tools/mne-features/&gt;`_ package by Jean-Baptiste</span>
+<span class="sd">    Schiratti and Alexandre Gramfort (requires sklearn).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    Richman, J. S. et al. (2000). Physiological time-series analysis</span>
+<span class="sd">    using approximate entropy and sample entropy. American Journal of</span>
+<span class="sd">    Physiology-Heart and Circulatory Physiology, 278(6), H2039-H2049.</span>
+
+<span class="sd">    https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.DistanceMetric.html</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Sample entropy with order 2.</span>
+
+<span class="sd">    &gt;&gt;&gt; from entropy import sample_entropy</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; np.random.seed(1234567)</span>
+<span class="sd">    &gt;&gt;&gt; x = np.random.rand(3000)</span>
+<span class="sd">    &gt;&gt;&gt; print(sample_entropy(x, order=2))</span>
+<span class="sd">    2.192416747827227</span>
+
+<span class="sd">    Sample entropy with order 3 using the Euclidean distance.</span>
+
+<span class="sd">    &gt;&gt;&gt; from entropy import sample_entropy</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; np.random.seed(1234567)</span>
+<span class="sd">    &gt;&gt;&gt; x = np.random.rand(3000)</span>
+<span class="sd">    &gt;&gt;&gt; print(sample_entropy(x, order=3, metric=&#39;euclidean&#39;))</span>
+<span class="sd">    2.7246543561542453</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">metric</span> <span class="o">==</span> <span class="s1">&#39;chebyshev&#39;</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">size</span> <span class="o">&lt;</span> <span class="mi">5000</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_numba_sampen</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">mm</span><span class="o">=</span><span class="n">order</span><span class="p">,</span> <span class="n">r</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">phi</span> <span class="o">=</span> <span class="n">_app_samp_entropy</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="n">metric</span><span class="p">,</span>
+                                <span class="n">approximate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">phi</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">phi</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span></div>
+
+
+<span class="nd">@jit</span><span class="p">(</span><span class="s1">&#39;u8(unicode_type)&#39;</span><span class="p">,</span> <span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_lz_complexity</span><span class="p">(</span><span class="n">binary_string</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal Numba implementation of the Lempel-Ziv (LZ) complexity.</span>
+<span class="sd">    https://github.com/Naereen/Lempel-Ziv_Complexity/blob/master/src/lziv_complexity.py</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span>
+    <span class="n">v_max</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">binary_string</span><span class="p">)</span>
+    <span class="n">complexity</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">binary_string</span><span class="p">[</span><span class="n">u</span> <span class="o">+</span> <span class="n">v</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">binary_string</span><span class="p">[</span><span class="n">w</span> <span class="o">+</span> <span class="n">v</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+            <span class="n">v</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">w</span> <span class="o">+</span> <span class="n">v</span> <span class="o">&gt;=</span> <span class="n">length</span><span class="p">:</span>
+                <span class="n">complexity</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="n">v_max</span><span class="p">:</span>
+                <span class="n">v_max</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="n">u</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">u</span> <span class="o">==</span> <span class="n">w</span><span class="p">:</span>
+                <span class="n">complexity</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">w</span> <span class="o">+=</span> <span class="n">v_max</span>
+                <span class="k">if</span> <span class="n">w</span> <span class="o">&gt;</span> <span class="n">length</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">u</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">v</span> <span class="o">=</span> <span class="mi">1</span>
+                    <span class="n">v_max</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">complexity</span>
+
+
+<div class="viewcode-block" id="lziv_complexity"><a class="viewcode-back" href="../../generated/entropy.lziv_complexity.html#entropy.lziv_complexity">[docs]</a><span class="k">def</span> <span class="nf">lziv_complexity</span><span class="p">(</span><span class="n">binary_sequence</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Lempel-Ziv (LZ) complexity of binary sequence.</span>
+
+<span class="sd">    .. versionadded:: 0.1.1</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    binary_sequence : str or array</span>
+<span class="sd">        A sequence of 0 and 1, e.g. ``&#39;1001111011000010&#39;`` or</span>
+<span class="sd">        ``[0, 1, 0, 1, 1]``.</span>
+<span class="sd">    normalize : bool</span>
+<span class="sd">        If ``True``, returns the normalized LZ (see Notes).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    lz : int or float</span>
+<span class="sd">        LZ complexity, which corresponds to the number of different</span>
+<span class="sd">        substrings encountered as the stream is viewed from the</span>
+<span class="sd">        beginning to the end. If ``normalize=False``, the output is an</span>
+<span class="sd">        integer (counts), otherwise the output is a float.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    LZ complexity is defined as the number of different substrings encountered</span>
+<span class="sd">    as the sequence is viewed from begining to the end.</span>
+
+<span class="sd">    Although the raw LZ is an important complexity indicator, it is heavily</span>
+<span class="sd">    influenced by sequence length (longer sequence will result in higher LZ).</span>
+<span class="sd">    Zhang and colleagues (2009) have therefore proposed the normalized LZ,</span>
+<span class="sd">    which is defined by</span>
+
+<span class="sd">    .. math:: LZn = \\frac{LZ}{(n / \\log_2{n})}</span>
+
+<span class="sd">    where :math:`n` is the length of the binary sequence.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Lempel, A., &amp; Ziv, J. (1976). On the Complexity of Finite Sequences.</span>
+<span class="sd">           IEEE Transactions on Information Theory / Professional Technical</span>
+<span class="sd">           Group on Information Theory, 22(1), 75–81.</span>
+<span class="sd">           https://doi.org/10.1109/TIT.1976.1055501</span>
+
+<span class="sd">    .. [2] Zhang, Y., Hao, J., Zhou, C., &amp; Chang, K. (2009). Normalized</span>
+<span class="sd">           Lempel-Ziv complexity and its application in bio-sequence analysis.</span>
+<span class="sd">           Journal of Mathematical Chemistry, 46(4), 1203–1212.</span>
+<span class="sd">           https://doi.org/10.1007/s10910-008-9512-2</span>
+
+<span class="sd">    .. [3] https://en.wikipedia.org/wiki/Lempel-Ziv_complexity</span>
+
+<span class="sd">    .. [4] https://github.com/Naereen/Lempel-Ziv_Complexity</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from entropy import lziv_complexity</span>
+<span class="sd">    &gt;&gt;&gt; # Substrings = 1 / 0 / 01 / 1110 / 1100 / 0010</span>
+<span class="sd">    &gt;&gt;&gt; s = &#39;1001111011000010&#39;</span>
+<span class="sd">    &gt;&gt;&gt; lziv_complexity(s)</span>
+<span class="sd">    6</span>
+
+<span class="sd">    Using a list of integer / boolean instead of a string:</span>
+
+<span class="sd">    &gt;&gt;&gt; # 1 / 0 / 10</span>
+<span class="sd">    &gt;&gt;&gt; lziv_complexity([1, 0, 1, 0, 1, 0, 1, 0, 1, 0])</span>
+<span class="sd">    3</span>
+
+<span class="sd">    With normalization:</span>
+
+<span class="sd">    &gt;&gt;&gt; lziv_complexity(s, normalize=True)</span>
+<span class="sd">    1.5</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">binary_sequence</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">normalize</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">binary_sequence</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)):</span>
+        <span class="n">binary_sequence</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">binary_sequence</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">binary_sequence</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">binary_sequence</span>
+
+    <span class="c1"># Check that string only contains 0 and/or 1</span>
+    <span class="n">unique_chars</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">s</span><span class="p">)))</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">unique_chars</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">unique_chars</span> <span class="o">==</span> <span class="p">[</span><span class="s1">&#39;0&#39;</span><span class="p">,</span> <span class="s1">&#39;1&#39;</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">normalize</span><span class="p">:</span>
+        <span class="c1"># 1) Timmermann et al. 2019</span>
+        <span class="c1"># The sequence is randomly shuffled, and the normalized LZ</span>
+        <span class="c1"># is calculated as the ratio of the LZ of the original sequence</span>
+        <span class="c1"># divided by the LZ of the randomly shuffled LZ. However, the final</span>
+        <span class="c1"># output is dependent on the random seed.</span>
+        <span class="c1"># sl_shuffled = list(s)</span>
+        <span class="c1"># rng = np.random.RandomState(None)</span>
+        <span class="c1"># rng.shuffle(sl_shuffled)</span>
+        <span class="c1"># s_shuffled = &#39;&#39;.join(sl_shuffled)</span>
+        <span class="c1"># return _lz_complexity(s) / _lz_complexity(s_shuffled)</span>
+        <span class="c1"># 2) Zhang et al. 2009</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_lz_complexity</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">n</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_lz_complexity</span><span class="p">(</span><span class="n">s</span><span class="p">)</span></div>
+</pre></div>
+
+    </div>
+      
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="#">Back to top</a>
+      
+        <br/>
+        
+      
+    </p>
+    <p>
+        &copy; Copyright 2018-2019, Raphael Vallat.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
+</html>

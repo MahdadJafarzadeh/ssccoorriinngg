@@ -394,7 +394,234 @@ class ssccoorriinngg():
         
         return X_train, X_test, y_train, y_test
     
-    #%% Save features
+    #%% Feature extraction PER_Subject
+    def FeatureExtraction_per_subject(self, input_data):
+        
+
+        # Loading data section
+        # Load data
+        tic = time.time() 
+        fname = self.filename
+        
+        # choose channel to extract features from
+        ch = self.channel
+        fs = self.fs #Hz
+        T  = self.T #sec
+        
+        x = Input_data
+        x = np.reshape(x, (np.shape(x)[0] * np.shape(x)[1] ,1))
+        
+        #%% Filtering section
+        ## Defining preprocessing function ##
+        def butter_bandpass_filter(data, lowcut, highcut, fs, order = 2):
+            nyq = 0.5 * fs
+            low = lowcut /nyq
+            high = highcut/nyq
+            b, a = butter(order, [low, high], btype='band')
+            #print(b,a)
+            y = lfilter(b, a, data)
+            return y
+        
+        # Apply filter
+        x = butter_bandpass_filter(data=x, lowcut=.1, highcut=30, fs=fs, order=2)
+        
+        #%% Reshaping data per epoch
+        X = np.reshape(x, (int(len(x) / (fs*T)), fs*T))
+        
+        #%% Feature Extraction section
+        
+        # Defining EEG bands:
+        eeg_bands = {'Delta'     : (0.5, 4),
+                 'Theta_low' : (4  , 6),
+                 'Theta_high': (6  , 8),
+                 'Alpha'     : (8  , 11),
+                 'Beta'      : (16 , 24),
+                 'Sigma'     : (12 , 15),
+                 'Sigma_slow': (10 , 12)}
+        
+        # Initializing variables of interest
+        eeg_band_fft      = dict()
+        freq_ix           = dict()
+        Features = np.empty((0, 42))
+        # Settings of peridogram    
+        Window = 'hann'
+        # zero-padding added with respect to (Nfft=2^(nextpow2(len(window))))
+        Nfft = 2 ** 15 
+        # Defining freq. resoultion
+        fm, _ = periodogram(x = X[0,:], fs = fs, nfft = Nfft , window = Window)  
+        tic = time.time()
+        # Finding the index of different freq bands with respect to "fm" #
+        for band in eeg_bands:
+            freq_ix[band] = np.where((fm >= eeg_bands[band][0]) &   
+                               (fm <= eeg_bands[band][1]))[0]    
+            
+        
+        # Defining for loop to extract features per epoch
+        for i in np.arange(len(X)):
+        
+            data = X[i,:]
+            
+            # Compute the "total" power inside the investigational window
+            _ , pxx = periodogram(x = data, fs = fs, nfft = Nfft , window = Window) 
+            
+            # Initialization for wavelet 
+            cA_values  = []
+            cD_values  = []
+            cA_mean    = []
+            cA_std     = []
+            cA_Energy  = []
+            cD_mean    = []
+            cD_std     = []
+            cD_Energy  = []
+            Entropy_D  = []
+            Entropy_A  = []
+            first_diff = np.zeros(len(data)-1)
+            
+            '''Power in differnt freq ranges ''' 
+            # Total pow is defined form 0.5 - 20 Hz
+            pow_total      = np.sum(pxx[np.arange(freq_ix['Delta'][0], freq_ix['Beta'][-1]+1)])
+            Pow_Delta      = np.sum(pxx[freq_ix['Delta']]) / pow_total
+            Pow_Theta_low  = np.sum(pxx[freq_ix['Theta_low']]) / pow_total
+            Pow_Theta_high = np.sum(pxx[freq_ix['Theta_high']]) / pow_total
+            Pow_Alpha      = np.sum(pxx[freq_ix['Alpha']]) / pow_total
+            Pow_Beta       = np.sum(pxx[freq_ix['Beta']])  / pow_total
+            Pow_Sigma      = np.sum(pxx[freq_ix['Sigma']]) / pow_total
+            Pow_Sigma_slow = np.sum(pxx[freq_ix['Sigma_slow']]) / pow_total
+            
+            '''Apply Welch to see the dominant Max power in each freq band''' 
+            ff, Psd             = welch(x = data, fs = fs, window = 'hann', nperseg= 512, nfft = Nfft)
+            Pow_max_Total       = np.max(Psd[np.arange(freq_ix['Delta'][0], freq_ix['Beta'][-1]+1)])
+            Pow_max_Delta       = np.max(Psd[freq_ix['Delta']])
+            Pow_max_Theta_low   = np.max(Psd[freq_ix['Theta_low']])
+            Pow_max_Theta_high  = np.max(Psd[freq_ix['Theta_high']])
+            Pow_max_Alpha       = np.max(Psd[freq_ix['Alpha']])
+            Pow_max_Beta        = np.max(Psd[freq_ix['Beta']])
+            Pow_max_Sigma       = np.max(Psd[freq_ix['Sigma']])
+            Pow_max_Sigma_slow  = np.max(Psd[freq_ix['Sigma_slow']])
+            
+            ''' Spectral Entropy '''
+            Entropy_Welch = spectral_entropy(x = data, sf=fs, method='welch', nperseg = 512)
+            Entropy_fft   = spectral_entropy(x = data, sf=fs, method='fft')
+               
+            ''' Wavelet Decomposition ''' 
+            cA,cD=pywt.dwt(data,'coif1')
+            cA_values.append(cA)
+            cD_values.append(cD)
+            cA_mean.append(np.mean(cA_values))
+            cA_std.append(np.std(cA_values))
+            cA_Energy.append(np.sum(np.square(cA_values)))
+            cD_mean.append(np.mean(cD_values))
+            cD_std.append(np.std(cD_values))
+            cD_Energy.append(np.sum(np.square(cD_values)))
+            Entropy_D.append(np.sum(np.square(cD_values) * np.log(np.square(cD_values))))
+            Entropy_A.append(np.sum(np.square(cA_values) * np.log(np.square(cA_values))))
+            
+            ''' Hjorth Parameters '''
+            hjorth_activity     = np.var(data)
+            diff_input          = np.diff(data)
+            diff_diffinput      = np.diff(diff_input)
+            hjorth_mobility     = np.sqrt(np.var(diff_input)/hjorth_activity)
+            hjorth_diffmobility = np.sqrt(np.var(diff_diffinput)/np.var(diff_input))
+            hjorth_complexity   = hjorth_diffmobility / hjorth_mobility
+             
+            ''' Statisctical features'''
+            Kurt     = kurtosis(data, fisher = False)
+            Skewness = skew(data)
+            Mean     = np.mean(data)
+            Median   = np.median(data)
+            Std      = np.std(data)
+            ''' Coefficient of variation '''
+            coeff_var = Std / Mean
+            
+            ''' First and second difference mean and max '''
+            sum1  = 0.0
+            sum2  = 0.0
+            Max1  = 0.0
+            Max2  = 0.0
+            for j in range(len(data)-1):
+                    sum1     += abs(data[j+1]-data[j])
+                    first_diff[j] = abs(data[j+1]-data[j])
+                    
+                    if first_diff[j] > Max1: 
+                        Max1 = first_diff[j] # fi
+                        
+            for j in range(len(data)-2):
+                    sum2 += abs(first_diff[j+1]-first_diff[j])
+                    if abs(first_diff[j+1]-first_diff[j]) > Max2 :
+                    	Max2 = first_diff[j+1]-first_diff[j] 
+                        
+            diff_mean1 = sum1 / (len(data)-1)
+            diff_mean2 = sum2 / (len(data)-2) 
+            diff_max1  = Max1
+            diff_max2  = Max2
+            
+            ''' Variance and Mean of Vertex to Vertex Slope '''
+            t_max   = argrelextrema(data, np.greater)[0]
+            amp_max = data[t_max]
+            t_min   = argrelextrema(data, np.less)[0]
+            amp_min = data[t_min]
+            tt      = np.concatenate((t_max,t_min),axis=0)
+            if len(tt)>0:
+                tt.sort() #sort on the basis of time
+                h=0
+                amp = np.zeros(len(tt))
+                res = np.zeros(len(tt)-1)
+                
+                for l in range(len(tt)):
+                        amp[l] = data[tt[l]]
+                        
+                out = np.zeros(len(amp)-1)     
+                 
+                for j in range(len(amp)-1):
+                    out[j] = amp[j+1]-amp[j]
+                amp_diff = out
+                
+                out = np.zeros(len(tt)-1)  
+                
+                for j in range(len(tt)-1):
+                    out[j] = tt[j+1]-tt[j]
+                tt_diff = out
+                
+                for q in range(len(amp_diff)):
+                        res[q] = amp_diff[q]/tt_diff[q] #calculating slope        
+                
+                slope_mean = np.mean(res) 
+                slope_var  = np.var(res)   
+            else:
+                slope_var, slope_mean = 0, 0
+                
+            ''' Spectral mean '''
+            Spectral_mean = 1 / (freq_ix['Beta'][-1] - freq_ix['Delta'][0]) * (Pow_Delta + 
+                    Pow_Theta_low + Pow_Theta_high + Pow_Alpha + Pow_Beta + 
+                    Pow_Sigma) 
+            
+            ''' Correlation Dimension Feature '''
+            #cdf = nolds.corr_dim(data,1)
+            
+            ''' Detrended Fluctuation Analysis ''' 
+            
+            ''' Wrapping up featureset '''
+            feat = [pow_total, Pow_Delta, Pow_Theta_low, Pow_Theta_high, Pow_Alpha,
+                    Pow_Beta, Pow_Sigma, Pow_Sigma_slow, cA_mean[0], cA_std[0],
+                    cA_Energy[0], cD_Energy[0],  cD_mean[0], cD_std[0],
+                    Entropy_D[0], Entropy_A[0], Entropy_Welch, Entropy_fft,
+                    Kurt, Skewness, Mean, Median, Spectral_mean, hjorth_activity,
+                    hjorth_mobility, hjorth_complexity, Std, coeff_var,
+                    diff_mean1, diff_mean2, diff_max1, diff_max2, slope_mean, 
+                    slope_var, Pow_max_Total, Pow_max_Delta, Pow_max_Theta_low,
+                    Pow_max_Theta_high, Pow_max_Alpha, Pow_max_Beta, Pow_max_Sigma,
+                    Pow_max_Sigma_slow]
+            
+            Features = np.row_stack((Features,feat))
+        
+        #%% Replace the NaN values of features with the mean of each feature column
+        aa, bb = np.where(np.isnan(Features))
+        for j in np.arange(int(len(aa))):
+            Features[aa[j],bb[j]] = np.nanmean(Features[:,bb[j]])
+            print('the NaN values were successfully replaced with the mean of related feature.')   
+        
+        return Features
+        #%% Normalizing features
     
     def SaveFeatureSet(self, X, y, path, filename):
         path     = path  
@@ -492,18 +719,19 @@ class ssccoorriinngg():
     ######################## DEFINING SUPERVISED CLASSIFIERs ######################
     
     #%% Random Forest
-    def RandomForest_Modelling(self, X_train, y_train,X_test, y_test, scoring, n_estimators = 500, cv = 10):
+    def RandomForest_Modelling(self, X_train, y_train,X_test, y_test, scoring, n_estimators = 1000, cv = 10):
         tic = time.time()
         classifier_RF = RandomForestClassifier(n_estimators = n_estimators)
         classifier_RF.fit(X_train, y_train)
-        results_RF = classifier_RF.predict(X_test)
+        y_pred = classifier_RF.predict(X_test)
         #results_RF = cross_validate(estimator = classifier_RF, X = X, 
         #                         y = y, scoring = scoring, cv = KFold(n_splits = cv))
         #Acc_cv10_RF = accuracies_RF.mean()
         #std_cv10_RF = accuracies_RF.std()
         #print(f'Cross validation finished: Mean Accuracy {Acc_cv10_RF} +- {std_cv10_RF}')
         #print('Cross validation for RF took: {} secs'.format(time.time()-tic))
-        return results_RF
+        # Making the Confusion Matrix
+        return y_pred
     
     #%% Kernel SVM
     def KernelSVM_Modelling(self, X, y, cv, scoring, kernel):
@@ -532,19 +760,21 @@ class ssccoorriinngg():
         print('Cross validation for LR took: {} secs'.format(time.time()-tic))
         return results_LR
     #%% XGBoost
-    def XGB_Modelling(self, X, y, scoring, n_estimators = 250, 
+    def XGB_Modelling(self, X_train, y_train,X_test, y_test, scoring, n_estimators = 1000, 
                       cv = 10 , max_depth=3, learning_rate=.1):
         tic = time.time()
         from xgboost import XGBClassifier
         classifier_xgb = XGBClassifier(n_estimators = n_estimators, max_depth = max_depth,
                                        learning_rate = learning_rate)
-        results_xgb = cross_validate(estimator = classifier_xgb, X = X, 
-                                 y = y, scoring = scoring, cv = KFold(n_splits = cv))
+        classifier_xgb.fit(X_train, y_train)
+        y_pred = classifier_xgb.predict(X_test)
+        #results_xgb = cross_validate(estimator = classifier_xgb, X = X, 
+        #                         y = y, scoring = scoring, cv = KFold(n_splits = cv))
         #Acc_cv10_xgb = accuracies_xgb.mean()
         #std_cv10_xgb = accuracies_xgb.std()
         #print(f'Cross validation finished: Mean Accuracy {Acc_cv10_xgb} +- {std_cv10_xgb}')
         print('Cross validation for xgb took: {} secs'.format(time.time()-tic))
-        return results_xgb
+        return y_pred
     
     #%% ANN
     def ANN_Modelling(self, X, y, units_h1,  input_dim, units_h2, units_output,
@@ -576,7 +806,24 @@ class ssccoorriinngg():
         classifier.compile(optimizer = optimizer, loss = loss , metrics = metrics)
         
         return classifier
-
+    
+    #%% Evaluation using multi-label confusion matrix
+    def multi_label_confusion_matrix(self,y_true, y_pred):
+        from sklearn.metrics import multilabel_confusion_matrix
+        mcm = multilabel_confusion_matrix(y_true, y_pred)
+        tn     = mcm[:, 0, 0]
+        tp     = mcm[:, 1, 1]
+        fn     = mcm[:, 1, 0]
+        fp     = mcm[:, 0, 1]
+        Recall = tp / (tp + fn)
+        prec   = tp / (tp + fp)
+        f1_sc  = 2 * Recall * prec / (Recall + prec)
+        Acc = (tp + tn) / (tp + fp + fn+ tn)
+        print(f'Accuracy for N1,N2,N3,REM were respectively: {Acc}')
+        print(f'Precision for N1,N2,N3,REM were respectively: {prec}')
+        print(f'Recall for N1,N2,N3,REM were respectively: {Recall}')
+        print(f'f1-score for N1,N2,N3,REM were respectively: {f1_sc}')
+        return Acc, Recall, prec, f1_sc
     #%% Randomized and grid search 
     ######################## DEFINING RANDOMIZED SEARCH ###########################
     #       ~~~~~~!!!!! THIS IS FOR RANDOM FOREST AT THE MOMENT ~~~~~~!!!!!!
