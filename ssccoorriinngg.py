@@ -395,21 +395,18 @@ class ssccoorriinngg():
         return X_train, X_test, y_train, y_test
     
     #%% Feature extraction PER_Subject
-    def FeatureExtraction_per_subject(self, input_data):
+    def FeatureExtraction_per_subject(self, Input_data):
         
 
         # Loading data section
         # Load data
         tic = time.time() 
-        fname = self.filename
-        
-        # choose channel to extract features from
-        ch = self.channel
+
         fs = self.fs #Hz
         T  = self.T #sec
         
         x = Input_data
-        x = np.reshape(x, (np.shape(x)[0] * np.shape(x)[1] ,1))
+        X = x.flatten('F')
         
         #%% Filtering section
         ## Defining preprocessing function ##
@@ -423,10 +420,10 @@ class ssccoorriinngg():
             return y
         
         # Apply filter
-        x = butter_bandpass_filter(data=x, lowcut=.1, highcut=30, fs=fs, order=2)
+        X = butter_bandpass_filter(data=X, lowcut=.1, highcut=30, fs=fs, order=2)
         
         #%% Reshaping data per epoch
-        X = np.reshape(x, (int(len(x) / (fs*T)), fs*T))
+        X = np.reshape(X, (int(len(X) / (fs*T)), fs*T))
         
         #%% Feature Extraction section
         
@@ -618,7 +615,7 @@ class ssccoorriinngg():
         aa, bb = np.where(np.isnan(Features))
         for j in np.arange(int(len(aa))):
             Features[aa[j],bb[j]] = np.nanmean(Features[:,bb[j]])
-            print('the NaN values were successfully replaced with the mean of related feature.')   
+        print('the NaN values were successfully replaced with the mean of related feature.')   
         
         return Features
         #%% Normalizing features
@@ -719,18 +716,12 @@ class ssccoorriinngg():
     ######################## DEFINING SUPERVISED CLASSIFIERs ######################
     
     #%% Random Forest
-    def RandomForest_Modelling(self, X_train, y_train,X_test, y_test, scoring, n_estimators = 1000, cv = 10):
-        tic = time.time()
+    def RandomForest_Modelling(self, X_train, y_train,X_test, y_test, n_estimators = 500):
+        
         classifier_RF = RandomForestClassifier(n_estimators = n_estimators)
         classifier_RF.fit(X_train, y_train)
         y_pred = classifier_RF.predict(X_test)
-        #results_RF = cross_validate(estimator = classifier_RF, X = X, 
-        #                         y = y, scoring = scoring, cv = KFold(n_splits = cv))
-        #Acc_cv10_RF = accuracies_RF.mean()
-        #std_cv10_RF = accuracies_RF.std()
-        #print(f'Cross validation finished: Mean Accuracy {Acc_cv10_RF} +- {std_cv10_RF}')
-        #print('Cross validation for RF took: {} secs'.format(time.time()-tic))
-        # Making the Confusion Matrix
+
         return y_pred
     
     #%% Kernel SVM
@@ -885,47 +876,112 @@ class ssccoorriinngg():
         return BestParams_RandomSearch, Bestsocre_RandomSearch ,means, stds, params
         #%% Plot feature importance
         
-        def Feat_importance_plot(self, Input ,labels, n_estimators = 250):
+    def Feat_importance_plot(self, Input ,labels, n_estimators = 250):
             classifier = RandomForestClassifier(n_estimators = n_estimators)
             classifier.fit(Input, labels)
             FeatureImportance = pd.Series(classifier.feature_importances_).sort_values(ascending=False)
             sb.barplot(y=FeatureImportance, x=FeatureImportance.index)
             plt.show()
             
-        #%% mix pickle and h5 features
-        def mix_pickle_h5(self, picklefile, saving_fname,
+    #%% mix pickle and h5 features
+    def mix_pickle_h5(self, picklefile, saving_fname,
                           h5file = ("P:/3013080.02/ml_project/scripts/1D_TimeSeries/train_test/tr90_N3_fp1-M2_fp2-M1.h5"),
                           saving = False, ch = 'fp2-M1'):
-            import pickle 
+        import pickle 
+
+        # Define pickle file name
+        
+        picklefile = picklefile
+        pickle_in = open(picklefile + ".pickle","rb")
+        Featureset = pickle.load(pickle_in)
+        # Open relative h5 file to map labels
+        fname = h5file # N3
+        ch = ch
+        with h5py.File(fname, 'r') as rf:
+            xtest  = rf['.']['x_test_' + ch].value
+            xtrain = rf['.']['x_train_' + ch].value
+            ytest  = rf['.']['y_test_' + ch].value
+            ytrain = rf['.']['y_train_' + ch].value
+        
+        y = np.concatenate((ytrain[:,1], ytest[:,1]))
+        
+        rp = np.random.permutation(len(y))
+        
+        X = Featureset[rp,:]
+        y = y[rp]
+        
+        # saving
+        if saving == True:
+            directory = 'P:/3013080.02/ml_project/scripts/1D_TimeSeries/features/' 
+            fname = saving_fname
+            with h5py.File((directory+fname + '.h5'), 'w') as wf:
+                # Accuracies
+                dset = wf.create_dataset('X', X.shape, data =X)
+                dset = wf.create_dataset('y' , y.shape, data  = y)
+                
+        return X, y
+        
+    #%% Detect and remove bad signals
+    def remove_bad_signals(self, hypno_labels, input_feats):
+        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if j==-1]
+        out_feats  = np.delete(input_feats, bad, axis=2)
+        out_labels = np.delete(hypno_labels, bad, axis=0)
+        
+        return out_feats, out_labels
     
-            # Define pickle file name
+    #%% Detect and remove arousal and wake: useful for classifying only sleep stages
+    def remove_arousals_and_wake(self, hypno_labels, input_feats):
+        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if ((hypno_labels[i,1]==1) or (j == 0))]
+        out_feats  = np.delete(input_feats, bad, axis=2)
+        out_labels = np.delete(hypno_labels, bad, axis=0)
+        
+        return out_feats, out_labels
+    
+    #%% Replace the stage of arousal with wake
+    def replace_arousal_with_wake(self, hypno_labels, input_feats):
+        arousal    = [i for i,j in enumerate(hypno_labels[:,0]) if (hypno_labels[i,1]==1)]
+        out_labels = hypno_labels
+        out_labels[arousal,0] = 0
+        return out_labels
+    
+    #%% Create one column of binary values for each class
+    def binary_labels_creator(self, labels):
+        ''' column 0: wake - column 1: N1 - column 2: N2 - column 3: SWS - column 4: REM
+        '''
+        from sklearn.preprocessing import OneHotEncoder
+        onehotencoder = OneHotEncoder(categorical_features = [0])
+        out = onehotencoder.fit_transform(labels).toarray()
+        out = out[:,0:5]
+        
+        return out
+    
+    #%% Save the feature-label pair as a pickle file
+    def save_dictionary(self, path, fname, labels_dic, features_dic):
+        import pickle        
+        with open(path+fname+'.pickle',"wb") as f:
+            pickle.dump([features_dic, labels_dic], f)
             
-            picklefile = picklefile
-            pickle_in = open(picklefile + ".pickle","rb")
-            Featureset = pickle.load(pickle_in)
-            # Open relative h5 file to map labels
-            fname = h5file # N3
-            ch = ch
-            with h5py.File(fname, 'r') as rf:
-                xtest  = rf['.']['x_test_' + ch].value
-                xtrain = rf['.']['x_train_' + ch].value
-                ytest  = rf['.']['y_test_' + ch].value
-                ytrain = rf['.']['y_train_' + ch].value
+    #%% Load pickle files to access features and labels     
+    def load_dictionary(self, path, fname):
+        import pickle
+        with open(path + fname + '.pickle', "rb") as f: 
+            feats, y = pickle.load(f)
             
-            y = np.concatenate((ytrain[:,1], ytest[:,1]))
-            
-            rp = np.random.permutation(len(y))
-            
-            X = Featureset[rp,:]
-            y = y[rp]
-            
-            # saving
-            if saving == True:
-                directory = 'P:/3013080.02/ml_project/scripts/1D_TimeSeries/features/' 
-                fname = saving_fname
-                with h5py.File((directory+fname + '.h5'), 'w') as wf:
-                    # Accuracies
-                    dset = wf.create_dataset('X', X.shape, data =X)
-                    dset = wf.create_dataset('y' , y.shape, data  = y)
-                    
-            return X, y
+        return feats, y
+    #%% Z-score the featureset
+    def Standardadize_features(self, X_train, X_test):
+        from sklearn.preprocessing import StandardScaler
+        sc = StandardScaler()
+        X_train = sc.fit_transform(X_train)
+        X_test = sc.transform(X_test)
+        
+        return X_train, X_test
+    
+    #%% Replace the NaN values of features with the mean of each feature column
+    def replace_NaN_with_mean(self, Features):
+        aa, bb = np.where(np.isnan(Features))
+        for j in np.arange(int(len(aa))):
+            Features[aa[j],bb[j]] = np.nanmean(Features[:,bb[j]])
+        
+        return Features
+    
