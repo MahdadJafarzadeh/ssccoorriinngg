@@ -210,7 +210,80 @@ This funcyion can combine different stages together. The main interest was to co
            REM_fname    : FILENAME of REM stages (.h5 file)
            saving       : to save results: True
            fname_save   : name of file to save results
+### 5.4. remove_bad_signals(hypno_labels, input_feats)           
+This function is to remove the labels and data from the channels which have already been marked as disconnection or bad signal during manual scoring:
+
+    INPUTS: 
+           input_feats      : Featureset input
+           hypno_labels     : hypongram labels
            
+    OUTPUTS:
+           out_feats        : new Featureset.
+           out_labels       : new labels.
+           
+### 5.5. remove_arousals_and_wake(hypno_labels, input_feats)
+
+    INPUTS: 
+           input_feats      : Featureset input
+           hypno_labels     : hypongram labels
+           
+    OUTPUTS:
+           out_feats        : new Featureset.
+           out_labels       : new labels.
+           
+### 5.6. replace_arousal_with_wake(hypno_labels, input_feats)
+
+    INPUTS: 
+           input_feats      : Featureset input
+           hypno_labels     : hypongram labels
+           
+    OUTPUTS:
+           out_labels       : new labels.
+
+### 5.7. binary_labels_creator(labels)
+
+    INPUTS: 
+           labels           : hypongram labels
+           
+    OUTPUTS:
+           out_labels       : output binary labels.
+
+### 5.8. save_dictionary(path, fname, labels_dic, features_dic)
+
+    INPUTS: 
+           path             : Final folder of saving data.
+           fname            : name of file to save.
+           labels_dic       : Array including hypongram labels.
+           features_dic     : Array comprising featureset.          
+
+### 5.9. load_dictionary(path, fname)
+
+    INPUTS: 
+           path             : Final folder of saving data.
+           fname            : name of file to save.
+           
+    OUTPUTS:
+           feats            : loaded features
+           y                : output binary labels.
+
+### 5.10. Standardadize_features(X_train, X_test)
+
+    INPUTS: 
+           X_train          : Featureset input
+           y_train          : Labels (classes)
+           
+    OUTPUT:
+           
+           X_test           : Featureset input
+           y_test           : Labels (classes)
+           
+### 5.11. replace_NaN_with_mean(Features)
+
+    INPUTS:
+           Features            : Input features
+    OUTPUTS:
+           Features            : Features without NaN
+
 ## Sample code to use methods
 to see examples of using code, see example folder.
 
