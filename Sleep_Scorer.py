@@ -87,7 +87,7 @@ filename              = 'sleep_scoring_1'
 subjects_dic, hyp_dic = Object.load_dictionary(path, filename)
 
 #%% Create leave-one-out cross-validation
-
+subj_c = [14]
 for idx, c_subj in enumerate(subj_c):
     # Define counter of metrics per fold
     c = 1
@@ -138,6 +138,8 @@ for idx, c_subj in enumerate(subj_c):
     metrics_per_fold["iteration{}".format(c)] = all_metrics
     c = c + 1
     
-
+    # Hypnogram
+    hyp_test = Object.create_single_hypno(y_test)
+    Object.plot_hyp(hyp = hyp_test, mark_REM = 'active')
     
     

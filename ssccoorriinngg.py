@@ -985,3 +985,54 @@ class ssccoorriinngg():
         
         return Features
     
+    #%% create hyppno single column array
+    def create_single_hypno(self, y_pred):
+        # Find the index of each sleep stage (class)
+        wake = [w for w,j in enumerate(y_pred[:,0]) if y_pred[w,0]==1]
+        n1   = [w for w,j in enumerate(y_pred[:,1]) if y_pred[w,1]==1]
+        n2   = [w for w,j in enumerate(y_pred[:,2]) if y_pred[w,2]==1]
+        n3   = [w for w,j in enumerate(y_pred[:,3]) if y_pred[w,3]==1]
+        rem  = [w for w,j in enumerate(y_pred[:,4]) if y_pred[w,4]==1]
+        # Initialize hyp array
+        hyp_pred = np.zeros((len(y_pred),1))
+        # Replace the values of each sleep stage in hyp array
+        hyp_pred[wake]  = 0
+        hyp_pred[n1]    = 1
+        hyp_pred[n2]    = 2
+        hyp_pred[n3]    = 3
+        hyp_pred[rem]   = 4
+        
+        return hyp_pred
+    
+    #%% Plot hypno
+    def plot_hyp(self, hyp, mark_REM = 'active'):
+        
+        import matplotlib.pyplot as plt
+        
+        stages = hyp
+        stages = np.row_stack((stages, stages[-1]))
+        x      = np.arange(len(stages))
+        
+        #plt.figure(figsize = [20,14])
+        plt.step(x, stages, where='post')
+        plt.yticks([0,1,2,3,4], ['W', 'N1', 'N2', 'SWS', 'REM'])
+        plt.ylabel('sleep stage')
+        plt.xlabel('# epoch')
+        plt.title('Hypnogram')
+        plt.rcParams.update({'font.size': 15})
+        
+        # Mark REM epochs
+        if mark_REM == 'active':
+            rem = [i for i,j in enumerate(hyp) if (hyp[i]==4)]
+            for i in np.arange(len(rem)) -1:
+                if rem[i+1] - rem[i] == 1:
+                    plt.plot([rem[i], rem[i+1]], [4,4] , linewidth = 5, color = 'red')
+                elif rem[i] - rem[i-1] == 1:
+                    plt.plot([rem[i], rem[i]+1], [4,4] , linewidth = 5, color = 'red')
+        
+                elif ((rem[i+1] - rem[i] != 1) and (rem[i] - rem[i-1] != 1)):
+                    plt.plot([rem[i], rem[i]+1], [4,4] , linewidth = 5, color = 'red')
+        
+
+        #rem  = [w for w,j in enumerate(stages) if stages[w]==4]
+
