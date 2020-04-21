@@ -810,10 +810,10 @@ class ssccoorriinngg():
         prec   = tp / (tp + fp)
         f1_sc  = 2 * Recall * prec / (Recall + prec)
         Acc = (tp + tn) / (tp + fp + fn+ tn)
-        print(f'Accuracy for N1,N2,N3,REM were respectively: {Acc}')
-        print(f'Precision for N1,N2,N3,REM were respectively: {prec}')
-        print(f'Recall for N1,N2,N3,REM were respectively: {Recall}')
-        print(f'f1-score for N1,N2,N3,REM were respectively: {f1_sc}')
+        print(f'Accuracy for Wake,N1,N2,N3,REM were respectively: {Acc}')
+        print(f'Precision for Wake,N1,N2,N3,REM were respectively: {prec}')
+        print(f'Recall for Wake,N1,N2,N3,REM were respectively: {Recall}')
+        print(f'f1-score for Wake,N1,N2,N3,REM were respectively: {f1_sc}')
         return Acc, Recall, prec, f1_sc
     #%% Randomized and grid search 
     ######################## DEFINING RANDOMIZED SEARCH ###########################
@@ -930,8 +930,8 @@ class ssccoorriinngg():
         return out_feats, out_labels
     
     #%% Detect and remove arousal and wake: useful for classifying only sleep stages
-    def remove_arousals_and_wake(self, hypno_labels, input_feats):
-        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if ((hypno_labels[i,1]==1) or (j == 0))]
+    def remove_arousals(self, hypno_labels, input_feats):
+        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if (hypno_labels[i,1]==1)]
         out_feats  = np.delete(input_feats, bad, axis=2)
         out_labels = np.delete(hypno_labels, bad, axis=0)
         
@@ -1010,12 +1010,29 @@ class ssccoorriinngg():
         import matplotlib.pyplot as plt
         
         stages = hyp
-        stages = np.row_stack((stages, stages[-1]))
+        #stages = np.row_stack((stages, stages[-1]))
         x      = np.arange(len(stages))
         
+        # Change the order of classes: REM and wake on top
+        x = []
+        y = []
+        for i in np.arange(len(stages)):
+            s = stages[i]
+            if s== 0 :  p = -0
+            if s== 4 :  p = -1
+            if s== 1 :  p = -2
+            if s== 2 :  p = -3
+            if s== 3 :  p = -4
+            if i!=0:
+                y.append(p)
+                x.append(i-1)   
+        y.append(p)
+        x.append(i)
+        
+
         #plt.figure(figsize = [20,14])
-        plt.step(x, stages, where='post')
-        plt.yticks([0,1,2,3,4], ['W', 'N1', 'N2', 'SWS', 'REM'])
+        plt.step(x, y, where='post')
+        plt.yticks([0,-1,-2,-3,-4], ['W','REM', 'N1', 'N2', 'SWS'])
         plt.ylabel('sleep stage')
         plt.xlabel('# epoch')
         plt.title('Hypnogram')
@@ -1026,12 +1043,12 @@ class ssccoorriinngg():
             rem = [i for i,j in enumerate(hyp) if (hyp[i]==4)]
             for i in np.arange(len(rem)) -1:
                 if rem[i+1] - rem[i] == 1:
-                    plt.plot([rem[i], rem[i+1]], [4,4] , linewidth = 5, color = 'red')
+                    plt.plot([rem[i], rem[i+1]], [-1,-1] , linewidth = 5, color = 'red')
                 elif rem[i] - rem[i-1] == 1:
-                    plt.plot([rem[i], rem[i]+1], [4,4] , linewidth = 5, color = 'red')
+                    plt.plot([rem[i], rem[i]+1], [-1,-1] , linewidth = 5, color = 'red')
         
                 elif ((rem[i+1] - rem[i] != 1) and (rem[i] - rem[i-1] != 1)):
-                    plt.plot([rem[i], rem[i]+1], [4,4] , linewidth = 5, color = 'red')
+                    plt.plot([rem[i], rem[i]+1], [-1,-1] , linewidth = 5, color = 'red')
         
 
         #rem  = [w for w,j in enumerate(stages) if stages[w]==4]
