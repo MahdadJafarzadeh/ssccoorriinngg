@@ -10,6 +10,7 @@ The main aim of this project is to ease sleep analysis and research. So, everyon
 
 Interesting!
 
+![Sample_Hypno](https://user-images.githubusercontent.com/48684369/79888381-d4002d00-83fc-11ea-8a14-af70befb0327.png)
 ## Description of class
 In this section, we define capabilities of **ssccoorriinngg** sleep scorer. This class comprises feature extraction method, feature selection methods, various machine-learning classifiers, and grid/randomized search methods to tune hyper parametrs. The descriptions can be found below. To sue the class please read this page thoroughly.
 
