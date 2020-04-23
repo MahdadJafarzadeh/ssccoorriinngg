@@ -1,4 +1,4 @@
-# ssccoorriinngg
+# ssccoorriinngg : Automatic sleep scoring package
 ## Introduction
 Sleep comprises different stages, namely: N1 (transitional stage), N2 (light sleep), N3 (deep sleep, aka slow wave sleep), and REM (rapid eye movement).
 
