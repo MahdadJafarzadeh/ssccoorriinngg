@@ -50,9 +50,8 @@ for idx, c_subj in enumerate(subj_c):
     x_tmp, y_tmp =  Object.remove_bad_signals(hypno_labels = y_tmp_init,
                                               input_feats = x_tmp_init)
     
-    # replace current stage contaminated with arousal with wake
-    y_tmp        = Object.replace_arousal_with_wake(hypno_labels = y_tmp,
-                                              input_feats = x_tmp)
+    # remove stages contaminated with arousal
+    x_tmp, y_tmp = Object.remove_arousals(hypno_labels = y_tmp, input_feats = x_tmp)
 
     # Create binary labels array
     yy = Object.binary_labels_creator(y_tmp)
@@ -78,19 +77,19 @@ print('Feature extraction has been finished.')
  
 #%% Save created features and labels
 path     = 'P:/3013080.02/ml_project/scripts/1D_TimeSeries/features/'
-filename = 'sleep_scoring_1'
+filename = 'sleep_scoring_NoArousal'
 Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
 
 #%% Load featureset and labels
 path                  = 'P:/3013080.02/ml_project/scripts/1D_TimeSeries/features/'
-filename              = 'sleep_scoring_1'
+filename              = 'sleep_scoring_NoArousal'
 subjects_dic, hyp_dic = Object.load_dictionary(path, filename)
 
 #%% Create leave-one-out cross-validation
-subj_c = [14]
+ # Define counter of metrics per fold
+c = 1
 for idx, c_subj in enumerate(subj_c):
-    # Define counter of metrics per fold
-    c = 1
+   
     ### assigning strings of TEST set
     # 1. test hypno
     str_test_hyp  = 'hyp' + str(c_subj)
@@ -126,7 +125,7 @@ for idx, c_subj in enumerate(subj_c):
     X_test  = Object.replace_NaN_with_mean(X_test)
     
     # Define classifier of interest
-    y_pred = Object.RandomForest_Modelling(X_train, y_train, X_test, y_test, n_estimators = 500)
+    y_pred = Object.RandomForest_Modelling(X_train, y_train, X_test, y_test, n_estimators = 1000)
     
     # Metrics to assess the model performance on test data
     Acc, Recall, prec, f1_sc = Object.multi_label_confusion_matrix(y_test, y_pred)
@@ -139,7 +138,7 @@ for idx, c_subj in enumerate(subj_c):
     c = c + 1
     
     # Hypnogram
-    hyp_test = Object.create_single_hypno(y_test)
-    Object.plot_hyp(hyp = hyp_test, mark_REM = 'active')
+    #hyp_test = Object.create_single_hypno(y_test)
+    #Object.plot_hyp(hyp = hyp_test, mark_REM = 'active')
     
     

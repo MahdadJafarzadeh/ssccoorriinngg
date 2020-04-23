@@ -985,6 +985,17 @@ class ssccoorriinngg():
         
         return Features
     
+    #%% Replace the inf values of features with the mean of each feature column
+    def replace_inf_with_mean(self, Features):
+        feat_tmp = Features
+        aa, bb = np.where(Features== np.inf)  
+        feat_tmp = np.delete(feat_tmp,aa,0)
+        
+        for j in np.arange(int(len(aa))):
+            Features[aa[j],bb[j]] = np.nanmean(feat_tmp[:,bb[j]])
+        
+        return Features
+    
     #%% create hyppno single column array
     def create_single_hypno(self, y_pred):
         # Find the index of each sleep stage (class)
@@ -1032,9 +1043,9 @@ class ssccoorriinngg():
 
         #plt.figure(figsize = [20,14])
         plt.step(x, y, where='post')
-        plt.yticks([0,-1,-2,-3,-4], ['W','REM', 'N1', 'N2', 'SWS'])
-        plt.ylabel('sleep stage')
-        plt.xlabel('# epoch')
+        plt.yticks([0,-1,-2,-3,-4], ['Wake','REM', 'N1', 'N2', 'SWS'])
+        plt.ylabel('Sleep Stage')
+        plt.xlabel('# Epoch')
         plt.title('Hypnogram')
         plt.rcParams.update({'font.size': 15})
         
@@ -1049,7 +1060,128 @@ class ssccoorriinngg():
         
                 elif ((rem[i+1] - rem[i] != 1) and (rem[i] - rem[i-1] != 1)):
                     plt.plot([rem[i], rem[i]+1], [-1,-1] , linewidth = 5, color = 'red')
+                    
+    #%% Mean results of leave-one-out cross-validation
+    def Mean_leaveOneOut(self, metrics_per_fold):
+        mean_acc      = np.empty((0,5))
+        mean_prec     = np.empty((0,5))
+        mean_recall   = np.empty((0,5))
+        mean_f1_score = np.empty((0,5))
         
+        for i in np.arange(len(metrics_per_fold)):
+            itr = str(i+1)
+            iteration_tmp = metrics_per_fold['iteration'+itr]
+            
+            tmp_acc       = iteration_tmp[0]
+            tmp_recall    = iteration_tmp[1]
+            tmp_prec      = iteration_tmp[2]
+            tmp_f1_score  = iteration_tmp[3]
+            # concatenate them all per metric
+            mean_acc      = np.row_stack((mean_acc, tmp_acc))
+            mean_prec     = np.row_stack((mean_prec, tmp_prec))
+            mean_recall   = np.row_stack((mean_recall, tmp_recall))
+            mean_f1_score = np.row_stack((mean_f1_score, tmp_f1_score))
+            # Show results
+            Acc_Mean           = np.nanmean(mean_acc, axis = 0)
+            Recall_Mean        = np.nanmean(mean_recall, axis = 0)
+            Prec_Mean          = np.nanmean(mean_prec, axis = 0)
+            F1_score_Mean      = np.nanmean(mean_f1_score, axis = 0)
+            # remove temp arrays
+            del tmp_acc, tmp_recall, tmp_prec, tmp_f1_score
+            
+        # Show results
+        print(f'Mean Acc, Recall, Precision, and F1-score of leave-one-out cross-validation for Wake, N1, N2, SWS, and REM, respectively:\n{Acc_Mean}\n{Recall_Mean}\n{Prec_Mean}\n{F1_score_Mean}')
+        
+        
+    #%% def comparative hypnograms (True vs predicted)
 
-        #rem  = [w for w,j in enumerate(stages) if stages[w]==4]
-
+    def plot_comparative_hyp(self, hyp_true, hyp_pred, mark_REM = 'active'):
+        
+        import matplotlib.pyplot as plt
+    
+        stages = hyp_true
+        #stages = np.row_stack((stages, stages[-1]))
+        x      = np.arange(len(stages))
+        
+        # Change the order of classes: REM and wake on top
+        x = []
+        y = []
+        for i in np.arange(len(stages)):
+            s = stages[i]
+            if s== 0 :  p = -0
+            if s== 4 :  p = -1
+            if s== 1 :  p = -2
+            if s== 2 :  p = -3
+            if s== 3 :  p = -4
+            if i!=0:
+                y.append(p)
+                x.append(i-1)   
+        y.append(p)
+        x.append(i)
+        
+    
+        #plt.figure(figsize = [20,14])
+        fig, axs = plt.subplots(2,1)
+        plt.axes(axs[0])
+        plt.step(x, y, where='post')
+        plt.yticks([0,-1,-2,-3,-4], ['Wake','REM', 'N1', 'N2', 'SWS'])
+        plt.ylabel('Sleep Stage')
+        plt.xlabel('# Epoch')
+        plt.title('True Hypnogram')
+        plt.rcParams.update({'font.size': 15})
+        
+        # Mark REM epochs
+        if mark_REM == 'active':
+            rem = [i for i,j in enumerate(hyp_true) if (hyp_true[i]==4)]
+            for i in np.arange(len(rem)) -1:
+                if rem[i+1] - rem[i] == 1:
+                    plt.plot([rem[i], rem[i+1]], [-1,-1] , linewidth = 5, color = 'red')
+                elif rem[i] - rem[i-1] == 1:
+                    plt.plot([rem[i], rem[i]+1], [-1,-1] , linewidth = 5, color = 'red')
+        
+                elif ((rem[i+1] - rem[i] != 1) and (rem[i] - rem[i-1] != 1)):
+                    plt.plot([rem[i], rem[i]+1], [-1,-1] , linewidth = 5, color = 'red')
+                    
+        del x,y, stages            
+	    stages = hyp_pred
+        #stages = np.row_stack((stages, stages[-1]))
+        x      = np.arange(len(stages))
+        
+        # Change the order of classes: REM and wake on top
+        x = []
+        y = []
+        for i in np.arange(len(stages)):
+            s = stages[i]
+            if s== 0 :  p = -0
+            if s== 4 :  p = -1
+            if s== 1 :  p = -2
+            if s== 2 :  p = -3
+            if s== 3 :  p = -4
+            if i!=0:
+                y.append(p)
+                x.append(i-1)   
+        y.append(p)
+        x.append(i)
+        
+    
+        #plt.figure(figsize = [20,14])
+        
+        plt.axes(axs[1])
+        plt.step(x, y, where='post')
+        plt.yticks([0,-1,-2,-3,-4], ['Wake','REM', 'N1', 'N2', 'SWS'])
+        plt.ylabel('Sleep Stage')
+        plt.xlabel('# Epoch')
+        plt.title('Predicted Hypnogram')
+        plt.rcParams.update({'font.size': 15})
+        
+        # Mark REM epochs
+        if mark_REM == 'active':
+            rem = [i for i,j in enumerate(hyp_pred) if (hyp_pred[i]==4)]
+            for i in np.arange(len(rem)) -1:
+                if rem[i+1] - rem[i] == 1:
+                    plt.plot([rem[i], rem[i+1]], [-1,-1] , linewidth = 5, color = 'red')
+                elif rem[i] - rem[i-1] == 1:
+                    plt.plot([rem[i], rem[i]+1], [-1,-1] , linewidth = 5, color = 'red')
+        
+                elif ((rem[i+1] - rem[i] != 1) and (rem[i] - rem[i-1] != 1)):
+                    plt.plot([rem[i], rem[i]+1], [-1,-1] , linewidth = 5, color = 'red')
