@@ -8,6 +8,8 @@ The state of art to detetct various stages of sleep is manual scoring, where an 
 
 The main aim of this project is to ease sleep analysis and research. So, everyone, having a piece of sleep data in hand (like EEG, ECG, etc) can create his/her own model and try to classify different stages of sleep. Thanks to the existing sleep recording equipment such as headbands (like iBand+) it is easy for any interested person to collect nocturnal or nap sleep data. Then this data can be used to develop a sleep scorer and to analyze the quality of your sleep every day! 
 
+**ssccoorriinngg** goal is not to provide the most complicated model for sleep scoring, but simpler models with comparable efficiency! Therefore, we would like the models to be quite useful fot any minimal sensing system, e.g. sleep headbands.
+
 Interesting!
 
 ![Sample_Hypno](https://user-images.githubusercontent.com/48684369/79888381-d4002d00-83fc-11ea-8a14-af70befb0327.png)
