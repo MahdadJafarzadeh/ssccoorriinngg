@@ -14,9 +14,9 @@ Interesting!
 
 ![Sample_Hypno](https://user-images.githubusercontent.com/48684369/79888381-d4002d00-83fc-11ea-8a14-af70befb0327.png)
 ## Description of class
-In this section, we define capabilities of **ssccoorriinngg** sleep scorer. This class comprises feature extraction method, feature selection methods, various machine-learning classifiers, and grid/randomized search methods to tune hyper parametrs. The descriptions can be found below. To sue the class please read this page thoroughly.
+In this section, we define the capabilities of **ssccoorriinngg** sleep scorer. This class comprises feature extraction method, feature selection methods, various machine-learning classifiers, and grid/randomized search methods to tune hyper parameters. The descriptions can be found below. To sue the class please read this page thoroughly.
 
-Since reading EDF files is always time consuming it is always recommended by us to firstly convert them to a more light data format. So, we use the file "EDF_to_h5.py" to perform this conversion and just save the arrays of data and hypnogram (if the aim is training a classifier).
+Since reading EDF files is always time-consuming it is always recommended by us to first convert them to a more light data format. So, we use the file "EDF_to_h5.py" to perform this conversion and just save the arrays of data and hypnogram (if the aim is training a classifier).
 
     INPUTS: 
         1) filename : full directory of train-test split (e.g. .h5 file saved via Prepare_for_CNN.py)
