@@ -397,7 +397,8 @@ class ssccoorriinngg():
     #%% Feature extraction PER_Subject
     def FeatureExtraction_per_subject(self, Input_data):
         
-
+        ''' n_time_dependence_epochs: number of previous and subsequent epochs
+        to consider with the current epoch to account for time-dependence'''
         # Loading data section
         # Load data
         tic = time.time() 
@@ -454,8 +455,9 @@ class ssccoorriinngg():
             
         
         # Defining for loop to extract features per epoch
+        #for i in np.arange(len(X)):
         for i in np.arange(len(X)):
-        
+            
             data = X[i,:]
             
             # Compute the "total" power inside the investigational window
@@ -640,16 +642,18 @@ class ssccoorriinngg():
         feat_selector = BorutaPy(rf, n_estimators='auto', verbose=2, random_state=0)
         # fir the object
         feat_selector.fit(X=X, y=y)
+        # Find index of selected feats
+        selected_feats_ind = feat_selector.support_
         # Check selected features
-        print(feat_selector.support_)
+        print(selected_feats_ind)
         # Select the chosen features from our dataframe.
-        Feat_selected = X[:, feat_selector.support_]
+        Feat_selected = X[:,selected_feats_ind]
         print(f'Selected Feature Matrix Shape {Feat_selected.shape}')
         toc = time.time()
         print(f'Feature selection using Boruta took {toc-tic}')
         ranks = feat_selector.ranking_
         
-        return ranks, Feat_selected
+        return ranks, Feat_selected, selected_feats_ind
     
     #%% Feature selection using LASSO as regression penalty
     def FeatSelect_LASSO(self, X, y, C = 1):
@@ -751,7 +755,7 @@ class ssccoorriinngg():
         print('Cross validation for LR took: {} secs'.format(time.time()-tic))
         return results_LR
     #%% XGBoost
-    def XGB_Modelling(self, X_train, y_train,X_test, y_test, scoring, n_estimators = 1000, 
+    def XGB_Modelling(self, X_train, y_train,X_test, y_test, n_estimators = 1000, 
                       cv = 10 , max_depth=3, learning_rate=.1):
         tic = time.time()
         from xgboost import XGBClassifier
@@ -997,7 +1001,7 @@ class ssccoorriinngg():
         return Features
     
     #%% create hyppno single column array
-    def create_single_hypno(self, y_pred):
+    def binary_to_single_column_label(self, y_pred):
         # Find the index of each sleep stage (class)
         wake = [w for w,j in enumerate(y_pred[:,0]) if y_pred[w,0]==1]
         n1   = [w for w,j in enumerate(y_pred[:,1]) if y_pred[w,1]==1]
@@ -1126,7 +1130,7 @@ class ssccoorriinngg():
         plt.step(x, y, where='post')
         plt.yticks([0,-1,-2,-3,-4], ['Wake','REM', 'N1', 'N2', 'SWS'])
         plt.ylabel('Sleep Stage')
-        plt.xlabel('# Epoch')
+        #plt.xlabel('# Epoch')
         plt.title('True Hypnogram')
         plt.rcParams.update({'font.size': 15})
         
@@ -1143,7 +1147,8 @@ class ssccoorriinngg():
                     plt.plot([rem[i], rem[i]+1], [-1,-1] , linewidth = 5, color = 'red')
                     
         del x,y, stages            
-	    stages = hyp_pred
+	    
+        stages = hyp_pred
         #stages = np.row_stack((stages, stages[-1]))
         x      = np.arange(len(stages))
         
@@ -1185,3 +1190,27 @@ class ssccoorriinngg():
         
                 elif ((rem[i+1] - rem[i] != 1) and (rem[i] - rem[i-1] != 1)):
                     plt.plot([rem[i], rem[i]+1], [-1,-1] , linewidth = 5, color = 'red')
+                    
+    #%% Add time-dependency to the featureset
+    def add_time_dependence_to_features(self, featureset, n_time_dependence=3):
+        ''' n_time_dependece: number of epochs preceding and proceeding the
+        current investigational epoch '''
+        # Calculate number of features (columns)
+        nf = np.shape(featureset)[1]
+        #time dependence
+        td = n_time_dependence
+        # Initializa new feature array
+        X_new = np.empty((np.shape(featureset)[0], nf * (2*td+1)))
+        # Define the for loop:
+        for i in np.arange(td, np.shape(featureset)[0] - td):
+            # Current epoch goes into the middle column
+            X_new[i, td * nf : (td+1) * nf]  = featureset[i,:]
+            # proceeding and preceding epochs come here:
+            for j in np.arange(1, td+1):
+                # Fill in previous epochs
+                X_new[i,nf * (td-j) : nf* (td-j+1)] = featureset [i-j,:]
+                # Fill in next epochs
+                X_new[i,nf * (td+j) : nf* (td+j+1)] = featureset [i+j,:]
+                
+                
+        return X_new

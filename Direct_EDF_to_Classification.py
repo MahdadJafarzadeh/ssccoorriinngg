@@ -68,6 +68,7 @@ for idx, c_subj in enumerate(subj_c):
     fs                = int(DataInfo['sfreq'])
     
 #####==================Choosing channels of interest======================#####
+    
     # 1. The channels that need to be referenced
     Mastoids          = ['TP10', 'TP9', 'TP10', 'TP9', 'TP10', 'TP9', 'TP10', 'TP9'] # Reference electrodes
     RequiredChannels  = ['Fp1', 'Fp2', 'F3', 'F4', 'C3', 'C4', 'O1', 'O2'] # main electrodes
@@ -160,7 +161,6 @@ path     = 'F:/Direct_EDF_to_Classification/'
 filename = 'sleep_scoring_NoArousal'
 Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
 
-
 #%% Load featureset and labels
 path                  = 'F:/Direct_EDF_to_Classification/'
 filename              = 'sleep_scoring_NoArousal'
@@ -169,6 +169,7 @@ subjects_dic, hyp_dic = Object.load_dictionary(path, filename)
 #%% Create leave-one-out cross-validation
  # Define counter of metrics per fold
 c = 1
+subj_c=[14]
 for idx, c_subj in enumerate(subj_c):
    
     ### assigning strings of TEST set
