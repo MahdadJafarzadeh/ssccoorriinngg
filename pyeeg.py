@@ -85,9 +85,11 @@ def hurst(X):
 	R_S = R_T / S_T
 	R_S = log(R_S)
 	n = log(T).reshape(N, 1)
-	H = lstsq(n[1:], R_S[1:])[0]
+	H = lstsq(n[1:], R_S[1:],rcond = None)[0]
+     
+    
 	return H[0]
-
+    
 
 ######################## Begin function definitions #######################
 
@@ -354,7 +356,7 @@ def hfd(X, Kmax):
 		L.append(log(mean(Lk)))
 		x.append([log(float(1) / k), 1])
 	
-	(p, r1, r2, s)=lstsq(x, L)
+	(p, r1, r2, s)=lstsq(x, L,rcond = None)
 	return p[0]
 
 def hjorth(X, D = None):
@@ -851,10 +853,10 @@ def dfa(X, Ave = None, L = None):
 				c = range(j,j+n)
 				c = vstack([c, ones(n)]).T # coordinates of time in the box
 				y = Y[j:j+n]				# the value of data in the box
-				F[i] += lstsq(c,y)[1]	# add residue in this box
+				F[i] += lstsq(c,y,rcond = None)[1]	# add residue in this box
 		F[i] /= ((len(X)/n)*n)
 	F = sqrt(F)
 	
-	Alpha = lstsq(vstack([log(L), ones(len(L))]).T,log(F))[0][0]
+	Alpha = lstsq(vstack([log(L), ones(len(L))]).T,log(F),rcond = None)[0][0]
 	
 	return Alpha

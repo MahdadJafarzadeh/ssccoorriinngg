@@ -38,6 +38,10 @@ import h5py
 import time
 import pyeeg
 import nolds
+from scipy.integrate import simps
+import scipy
+import scipy.fftpack
+
 
 class ssccoorriinngg():
     
@@ -211,9 +215,6 @@ class ssccoorriinngg():
             
             data = X[i,:]
             
-            # Compute the "total" power inside the investigational window
-            _ , pxx = periodogram(x = data, fs = fs, nfft = Nfft , window = Window) 
-            
             # Initialization for wavelet 
             cA_values  = []
             cD_values  = []
@@ -227,16 +228,29 @@ class ssccoorriinngg():
             Entropy_A  = []
             first_diff = np.zeros(len(data)-1)
             
-            '''Power in differnt freq ranges ''' 
-            # Total pow is defined form 0.5 - 20 Hz
+            ''' POWER --> Periodogram with padding '''
+            # Compute the "total" power inside the investigational window
+            _ , pxx = periodogram(x = data, fs = fs, nfft = Nfft , window = Window) 
+            
             pow_total      = np.sum(pxx[np.arange(freq_ix['Delta'][0], freq_ix['Beta'][-1]+1)])
-            Pow_Delta      = np.sum(pxx[freq_ix['Delta']]) / pow_total
-            Pow_Theta_low  = np.sum(pxx[freq_ix['Theta_low']]) / pow_total
-            Pow_Theta_high = np.sum(pxx[freq_ix['Theta_high']]) / pow_total
-            Pow_Alpha      = np.sum(pxx[freq_ix['Alpha']]) / pow_total
-            Pow_Beta       = np.sum(pxx[freq_ix['Beta']])  / pow_total
-            Pow_Sigma      = np.sum(pxx[freq_ix['Sigma']]) / pow_total
-            Pow_Sigma_slow = np.sum(pxx[freq_ix['Sigma_slow']]) / pow_total
+            Pow_Delta      = np.sum(pxx[freq_ix['Delta']]) 
+            Pow_Theta_low  = np.sum(pxx[freq_ix['Theta_low']]) 
+            Pow_Theta_high = np.sum(pxx[freq_ix['Theta_high']]) 
+            Pow_Alpha      = np.sum(pxx[freq_ix['Alpha']]) 
+            Pow_Beta       = np.sum(pxx[freq_ix['Beta']])  
+            Pow_Sigma      = np.sum(pxx[freq_ix['Sigma']]) 
+            Pow_Sigma_slow = np.sum(pxx[freq_ix['Sigma_slow']])  
+            
+            
+            '''Power ratio in differnt freq ranges ''' 
+            # Total pow is defined form 0.5 - 20 Hz
+            Pow_Delta_ratio      = np.sum(pxx[freq_ix['Delta']]) / pow_total
+            Pow_Theta_low_ratio  = np.sum(pxx[freq_ix['Theta_low']]) / pow_total
+            Pow_Theta_high_ratio = np.sum(pxx[freq_ix['Theta_high']]) / pow_total
+            Pow_Alpha_ratio      = np.sum(pxx[freq_ix['Alpha']]) / pow_total
+            Pow_Beta_ratio       = np.sum(pxx[freq_ix['Beta']])  / pow_total
+            Pow_Sigma_ratio      = np.sum(pxx[freq_ix['Sigma']]) / pow_total
+            Pow_Sigma_slow_ratio = np.sum(pxx[freq_ix['Sigma_slow']]) / pow_total
             
             '''Apply Welch to see the dominant Max power in each freq band''' 
             ff, Psd             = welch(x = data, fs = fs, window = 'hann', nperseg= 512, nfft = Nfft)
@@ -429,7 +443,7 @@ class ssccoorriinngg():
         #%% Feature Extraction section
         
         # Defining EEG bands:
-        eeg_bands = {'Delta'     : (0.5, 4),
+        eeg_bands = {'Delta' : (0.5, 4),
                  'Theta_low' : (4  , 6),
                  'Theta_high': (6  , 8),
                  'Alpha'     : (8  , 11),
@@ -440,7 +454,8 @@ class ssccoorriinngg():
         # Initializing variables of interest
         eeg_band_fft      = dict()
         freq_ix           = dict()
-        Features = np.empty((0, 42))
+        freq_ix_welch     = dict()
+        Features = np.empty((0, 75))
         # Settings of peridogram    
         Window = 'hann'
         # zero-padding added with respect to (Nfft=2^(nextpow2(len(window))))
@@ -448,72 +463,171 @@ class ssccoorriinngg():
         # Defining freq. resoultion
         fm, _ = periodogram(x = X[0,:], fs = fs, nfft = Nfft , window = Window)  
         tic = time.time()
-        # Finding the index of different freq bands with respect to "fm" #
+        
+        # Finding the index of different freq bands with respect to "fm" PERIODOGRAM #
         for band in eeg_bands:
             freq_ix[band] = np.where((fm >= eeg_bands[band][0]) &   
                                (fm <= eeg_bands[band][1]))[0]    
             
+        window_len = 4 # secs
+        ff, _      = welch(x = X[0,:], fs = fs, window = 'hann', nperseg = fs*window_len)
         
+        # Finding the index of different freq bands with respect to "fm" WELCH#
+        for band in eeg_bands:
+            freq_ix_welch[band] = np.where((ff >= eeg_bands[band][0]) &   
+                               (ff <= eeg_bands[band][1]))[0]    
+            
         # Defining for loop to extract features per epoch
-        #for i in np.arange(len(X)):
         for i in np.arange(len(X)):
             
             data = X[i,:]
+                        
+            ### Initialization for wavelet 
             
-            # Compute the "total" power inside the investigational window
-            _ , pxx = periodogram(x = data, fs = fs, nfft = Nfft , window = Window) 
+            # 4th appr coef
+            cA_values4  = []
             
-            # Initialization for wavelet 
-            cA_values  = []
-            cD_values  = []
-            cA_mean    = []
-            cA_std     = []
-            cA_Energy  = []
-            cD_mean    = []
-            cD_std     = []
-            cD_Energy  = []
-            Entropy_D  = []
-            Entropy_A  = []
+            # 1st to 4th det coef
+            cD_values4  = []
+            cD_values3  = []
+            cD_values2  = []
+            cD_values1  = []
+            
+            # mean and std of appr coef
+            cA_mean4    = []
+            cA_std4     = []
+            
+            # mean and std of det coefs
+            cD_mean4    = []
+            cD_std4     = []
+            cD_mean3    = []
+            cD_std3     = []
+            cD_mean2    = []
+            cD_std2     = []
+            cD_mean1    = []
+            cD_std1     = []
+            
+            # Energy of appr coefs
+            cA_Energy4  = []
+            
+            # Energy of det coefs
+            cD_Energy4  = []
+            cD_Energy3  = []
+            cD_Energy2  = []
+            cD_Energy1  = []
+            
+            # Entropy of appr coef
+            Entropy_A4  = []
+            
+            # Entropy of det coefs
+            Entropy_D4  = []
+            Entropy_D3  = []
+            Entropy_D2  = []
+            Entropy_D1  = []
+
             first_diff = np.zeros(len(data)-1)
             
-            '''Power in differnt freq ranges ''' 
-            # Total pow is defined form 0.5 - 20 Hz
-            pow_total      = np.sum(pxx[np.arange(freq_ix['Delta'][0], freq_ix['Beta'][-1]+1)])
-            Pow_Delta      = np.sum(pxx[freq_ix['Delta']]) / pow_total
-            Pow_Theta_low  = np.sum(pxx[freq_ix['Theta_low']]) / pow_total
-            Pow_Theta_high = np.sum(pxx[freq_ix['Theta_high']]) / pow_total
-            Pow_Alpha      = np.sum(pxx[freq_ix['Alpha']]) / pow_total
-            Pow_Beta       = np.sum(pxx[freq_ix['Beta']])  / pow_total
-            Pow_Sigma      = np.sum(pxx[freq_ix['Sigma']]) / pow_total
-            Pow_Sigma_slow = np.sum(pxx[freq_ix['Sigma_slow']]) / pow_total
+            ''' Power of signal --> Peridogram with padding'''
+            # Compute the "total" power inside the investigational window
+            _ , pxx = periodogram(x = data, fs = fs, nfft = Nfft , window = Window) 
+            freq_resolu_per= fm[1] - fm[0]
             
-            '''Apply Welch to see the dominant Max power in each freq band''' 
-            ff, Psd             = welch(x = data, fs = fs, window = 'hann', nperseg= 512, nfft = Nfft)
-            Pow_max_Total       = np.max(Psd[np.arange(freq_ix['Delta'][0], freq_ix['Beta'][-1]+1)])
-            Pow_max_Delta       = np.max(Psd[freq_ix['Delta']])
-            Pow_max_Theta_low   = np.max(Psd[freq_ix['Theta_low']])
-            Pow_max_Theta_high  = np.max(Psd[freq_ix['Theta_high']])
-            Pow_max_Alpha       = np.max(Psd[freq_ix['Alpha']])
-            Pow_max_Beta        = np.max(Psd[freq_ix['Beta']])
-            Pow_max_Sigma       = np.max(Psd[freq_ix['Sigma']])
-            Pow_max_Sigma_slow  = np.max(Psd[freq_ix['Sigma_slow']])
+            pow_total      = simps(pxx, dx = freq_resolu_per)
+            Pow_Delta      = simps(pxx[freq_ix['Delta']], dx = freq_resolu_per) 
+            Pow_Theta_low  = simps(pxx[freq_ix['Theta_low']], dx = freq_resolu_per) 
+            Pow_Theta_high = simps(pxx[freq_ix['Theta_high']], dx = freq_resolu_per) 
+            Pow_Alpha      = simps(pxx[freq_ix['Alpha']], dx = freq_resolu_per) 
+            Pow_Beta       = simps(pxx[freq_ix['Beta']], dx = freq_resolu_per)  
+            Pow_Sigma      = simps(pxx[freq_ix['Sigma']], dx = freq_resolu_per) 
+            Pow_Sigma_slow = simps(pxx[freq_ix['Sigma_slow']], dx = freq_resolu_per)  
+            
+            
+            '''Power ratio in differnt freq ranges (Periodogram)''' 
+            # Total pow is defined form 0.5 - 20 Hz
+            Pow_Delta_ratio      = Pow_Delta / pow_total
+            Pow_Theta_low_ratio  = Pow_Theta_low / pow_total
+            Pow_Theta_high_ratio = Pow_Theta_high / pow_total
+            Pow_Alpha_ratio      = Pow_Alpha / pow_total
+            Pow_Beta_ratio       = Pow_Beta / pow_total
+            Pow_Sigma_ratio      = Pow_Sigma / pow_total
+            Pow_Sigma_slow_ratio = Pow_Sigma_slow / pow_total
+            
+            '''Apply WELCH to see the ABSOLUTE power in each freq band'''
+            window_len = 4 # secs
+            ff, Psd             = welch(x = data, fs = fs, window = 'hann', nperseg = fs*window_len)
+            freq_resolu_welch   = ff[1] - ff[0]
+            
+            Pow_welch_Total       = simps(Psd, dx = freq_resolu_welch)
+            Pow_welch_Delta       = simps(Psd[freq_ix_welch['Delta']], dx = freq_resolu_welch)
+            Pow_welch_Theta_low   = simps(Psd[freq_ix_welch['Theta_low']], dx = freq_resolu_welch)
+            Pow_welch_Theta_high  = simps(Psd[freq_ix_welch['Theta_high']], dx = freq_resolu_welch)
+            Pow_welch_Alpha       = simps(Psd[freq_ix_welch['Alpha']], dx = freq_resolu_welch)
+            Pow_welch_Beta        = simps(Psd[freq_ix_welch['Beta']], dx = freq_resolu_welch)
+            Pow_welch_Sigma       = simps(Psd[freq_ix_welch['Sigma']], dx = freq_resolu_welch)
+            Pow_welch_Sigma_slow  = simps(Psd[freq_ix_welch['Sigma_slow']], dx = freq_resolu_welch)
+            
+            '''Apply WELCH to see the RELATIVE power in each freq band'''
+
+            Pow_welch_Delta_rel       = Pow_welch_Delta / Pow_welch_Total
+            Pow_welch_Theta_low_rel   = Pow_welch_Theta_low / Pow_welch_Total
+            Pow_welch_Theta_high_rel  = Pow_welch_Theta_high / Pow_welch_Total
+            Pow_welch_Alpha_rel       = Pow_welch_Alpha / Pow_welch_Total
+            Pow_welch_Beta_rel        = Pow_welch_Beta / Pow_welch_Total
+            Pow_welch_Sigma_rel       = Pow_welch_Sigma / Pow_welch_Total
+            Pow_welch_Sigma_slow_rel  = Pow_welch_Sigma_slow / Pow_welch_Total
             
             ''' Spectral Entropy '''
-            Entropy_Welch = spectral_entropy(x = data, sf=fs, method='welch', nperseg = 512)
+            Entropy_Welch = spectral_entropy(x = data, sf=fs, method='welch', nperseg = fs* window_len)
             Entropy_fft   = spectral_entropy(x = data, sf=fs, method='fft')
                
             ''' Wavelet Decomposition ''' 
-            cA,cD=pywt.dwt(data,'coif1')
-            cA_values.append(cA)
-            cD_values.append(cD)
-            cA_mean.append(np.mean(cA_values))
-            cA_std.append(np.std(cA_values))
-            cA_Energy.append(np.sum(np.square(cA_values)))
-            cD_mean.append(np.mean(cD_values))
-            cD_std.append(np.std(cD_values))
-            cD_Energy.append(np.sum(np.square(cD_values)))
-            Entropy_D.append(np.sum(np.square(cD_values) * np.log(np.square(cD_values))))
-            Entropy_A.append(np.sum(np.square(cA_values) * np.log(np.square(cA_values))))
+            # Extract 4 det compositions
+            coeffs = pywt.wavedec(data, 'db10', level=4)
+            cA4, cD4, cD3, cD2, cD1 = coeffs
+            
+            # Appending appr values
+            cA_values4.append(cA4)
+            
+            # Appending det coefs values
+            cD_values4.append(cD4)
+            cD_values3.append(cD3)
+            cD_values2.append(cD2)
+            cD_values1.append(cD1)
+            
+            # Calculate mean and std of appr coefs
+            cA_mean4.append(np.mean(cA_values4))
+            cA_std4.append(np.std(cA_values4))
+            
+            # Calculate mean of det coefs
+            cD_mean4.append(np.mean(cD_values4))
+            cD_mean3.append(np.mean(cD_values3))
+            cD_mean2.append(np.mean(cD_values2))
+            cD_mean1.append(np.mean(cD_values1))
+            
+            # Calculate std of det coefs
+            cD_std4.append(np.std(cD_values4))
+            cD_std3.append(np.std(cD_values3))
+            cD_std2.append(np.std(cD_values2))
+            cD_std1.append(np.std(cD_values1))
+            
+            # Calculate energy of appr coefs
+            cA_Energy4.append(np.sum(np.square(cA_values4)))
+            
+            # Calculate energy of det coefs
+            cD_Energy4.append(np.sum(np.square(cD_values4)))
+            cD_Energy3.append(np.sum(np.square(cD_values3)))
+            cD_Energy2.append(np.sum(np.square(cD_values2)))
+            cD_Energy1.append(np.sum(np.square(cD_values1)))
+            
+            # Entropy of appr coefs
+            Entropy_A4.append(np.sum(np.square(cA_values4) * np.log(np.square(cA_values4))))
+            
+            # Entropy of det coefs
+            Entropy_D4.append(np.sum(np.square(cD_values4) * np.log(np.square(cD_values4))))
+            Entropy_D3.append(np.sum(np.square(cD_values3) * np.log(np.square(cD_values3))))
+            Entropy_D2.append(np.sum(np.square(cD_values2) * np.log(np.square(cD_values2))))
+            Entropy_D1.append(np.sum(np.square(cD_values1) * np.log(np.square(cD_values1))))
+
             
             ''' Hjorth Parameters '''
             hjorth_activity     = np.var(data)
@@ -595,21 +709,134 @@ class ssccoorriinngg():
                     Pow_Sigma) 
             
             ''' Correlation Dimension Feature '''
-            #cdf = nolds.corr_dim(data,1)
-            
+            try:
+                cdf = nolds.corr_dim(data,1)
+            except np.linalg.LinAlgError:
+                cdf = np.NaN
+                
             ''' Detrended Fluctuation Analysis ''' 
+            try:
+                DFA = pyeeg.dfa(data)
+            except np.linalg.LinAlgError:
+                DFA = np.NaN
+            
+            ''' Hurst component '''
+            try:
+                Hurst = pyeeg.hurst(data)
+            except np.linalg.LinAlgError:
+                Hurst = np.NaN
+            
+            '''Compute Petrosian Fractal Dimension '''
+            try: 
+                PFD = pyeeg.pfd(data, D=None)
+            except np.linalg.LinAlgError:
+                PFD = np.NaN
+            
+            ''' Spectral edge frequency features --> SEF50 and SEF95'''
+            
+            # Imtiaz et al. proposed the freq band of investigation: 8 - 16 Hz
+            data_SEF =  butter_bandpass_filter(data=data, lowcut=8, highcut=16, fs=fs, order=2)
+            
+            # compute fft^2
+            FFT_ = abs(scipy.fft.fft(data, n = None))
+            FFT_ = FFT_[0:int(len(FFT_)/2)+1] 
+            FFT_ = abs(FFT_ ** 2)
+            
+            # Compute frequency samples
+            freq_fft, _ = periodogram(x = data_SEF, fs = fs, nfft = None , window = Window)  
+            
+            # Defining accumulative and total power
+            acc_pow = 0
+            tot_pow = 0
+            
+            # Calculating summation of all powers
+            for i,j in enumerate(freq_fft):
+                tot_pow = tot_pow + FFT_[i]
+            
+            # defining SEF50
+            for i,j in enumerate(freq_fft):
+                acc_pow = acc_pow + FFT_[i]    
+                if acc_pow >= .5 * tot_pow:
+                    SEF50 = j
+                    break
+                
+            # Defining SEF 95   
+            acc_pow = 0
+            for i,j in enumerate(freq_fft):
+                acc_pow = acc_pow + FFT_[i]    
+                if acc_pow >= .95 * tot_pow:
+                    SEF95 = j
+                    break
+            del acc_pow, tot_pow
+            
+            ''' Spectral edge frequency features --> SEFd'''
+            
+            # definig subepochs : create window size of 2 secs
+            time_win     = 2
+            samp_per_win = fs * time_win
+            
+            # each column is a subepoch of 2s
+            data_SEF_per_win = np.reshape(data_SEF,
+                                          (samp_per_win, int(len(data_SEF) / samp_per_win)), order='F' )
+            
+            SEFds = []
+            for j in np.arange(0, np.shape(data_SEF_per_win)[1]):
+                
+                # Calculating fft
+                data_tmp = data_SEF_per_win[:,j]
+                C        = abs(scipy.fft.fft(data_tmp, n = 512))
+                C        = C[0:int(len(C)/2)+1] 
+                C        = abs(C ** 2)
+                freqs, _ = periodogram(x = data_tmp, fs = fs, nfft = 512 , window = Window)  
+                
+                # Calculating SEFds
+                acc_pow = 0
+                tot_pow = 0
+                # Calculating summation of all powers
+                for i,j in enumerate(freqs):
+                    tot_pow = tot_pow + C[i]
+                
+                # defining SEF50
+                for i,j in enumerate(freqs):
+                    acc_pow = acc_pow + C[i]    
+                    if acc_pow >= .5 * tot_pow:
+                        SEF50_tmp = j
+                        break
+                # Defining SEF 95   
+                acc_pow = 0
+                for i,j in enumerate(freqs):
+                    acc_pow = acc_pow + C[i]    
+                    if acc_pow >= .95 * tot_pow:
+                        SEF95_tmp = j
+                        break
+                SEFd_tmp = SEF95_tmp - SEF50_tmp
+                # Comuting SEFds array
+                SEFds.append(SEFd_tmp)
+                del acc_pow, tot_pow, SEF95_tmp, SEF50_tmp
+                
+            SEFd = 1 / len(SEFds)  * sum(SEFds)
+            
+            
+            
             
             ''' Wrapping up featureset '''
             feat = [pow_total, Pow_Delta, Pow_Theta_low, Pow_Theta_high, Pow_Alpha,
-                    Pow_Beta, Pow_Sigma, Pow_Sigma_slow, cA_mean[0], cA_std[0],
-                    cA_Energy[0], cD_Energy[0],  cD_mean[0], cD_std[0],
-                    Entropy_D[0], Entropy_A[0], Entropy_Welch, Entropy_fft,
-                    Kurt, Skewness, Mean, Median, Spectral_mean, hjorth_activity,
-                    hjorth_mobility, hjorth_complexity, Std, coeff_var,
-                    diff_mean1, diff_mean2, diff_max1, diff_max2, slope_mean, 
-                    slope_var, Pow_max_Total, Pow_max_Delta, Pow_max_Theta_low,
-                    Pow_max_Theta_high, Pow_max_Alpha, Pow_max_Beta, Pow_max_Sigma,
-                    Pow_max_Sigma_slow]
+                    Pow_Beta, Pow_Sigma, Pow_Sigma_slow, Pow_Delta_ratio, Pow_Theta_low_ratio, 
+                    Pow_Theta_high_ratio, Pow_Alpha_ratio,
+                    Pow_Beta_ratio, Pow_Sigma_ratio, Pow_Sigma_slow_ratio, cA_mean4[0], cA_std4[0],
+                    cD_mean4[0],cD_mean3[0], cD_mean2[0], cD_mean1[0], cD_std4[0],
+                    cD_std3[0], cD_std2[0], cD_std1[0], cA_Energy4[0], cD_Energy4[0],
+                    cD_Energy3[0], cD_Energy2[0], cD_Energy1[0], Entropy_A4[0],
+                    Entropy_D4[0], Entropy_D3[0], Entropy_D2[0], Entropy_D1[0],
+                    Entropy_Welch, Entropy_fft, Kurt, Skewness, Mean, Median, 
+                    Spectral_mean, hjorth_activity, hjorth_mobility, 
+                    hjorth_complexity, Std, coeff_var, diff_mean1, diff_mean2, 
+                    diff_max1, diff_max2, slope_mean, slope_var, Pow_welch_Total, 
+                    Pow_welch_Delta, Pow_welch_Theta_low, Pow_welch_Theta_high, 
+                    Pow_welch_Alpha, Pow_welch_Beta, Pow_welch_Sigma, Pow_welch_Sigma_slow,
+                    Pow_welch_Delta_rel, Pow_welch_Theta_low_rel, Pow_welch_Theta_high_rel, 
+                    Pow_welch_Alpha_rel, Pow_welch_Beta_rel, Pow_welch_Sigma_rel, 
+                    Pow_welch_Sigma_slow_rel, SEF50, SEF95, SEFd, cdf, DFA, Hurst, PFD]
             
             Features = np.row_stack((Features,feat))
         
@@ -823,7 +1050,7 @@ class ssccoorriinngg():
     ######################## DEFINING RANDOMIZED SEARCH ###########################
     #       ~~~~~~!!!!! THIS IS FOR RANDOM FOREST AT THE MOMENT ~~~~~~!!!!!!
     def RandomSearchRF(self, X, y, scoring, estimator = RandomForestClassifier(),
-                        n_estimators = [int(x) for x in np.arange(10, 500, 20)],
+                        n_estimators = [int(x) for x in np.arange(10, 1000, 50)],
                         max_features = ['log2', 'sqrt'],
                         max_depth = [int(x) for x in np.arange(10, 100, 30)],
                         min_samples_split = [2, 5, 10],
@@ -927,7 +1154,7 @@ class ssccoorriinngg():
         
     #%% Detect and remove bad signals
     def remove_bad_signals(self, hypno_labels, input_feats):
-        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if j==-1]
+        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if ((j==-1) or (j==8))]
         out_feats  = np.delete(input_feats, bad, axis=2)
         out_labels = np.delete(hypno_labels, bad, axis=0)
         
@@ -935,7 +1162,7 @@ class ssccoorriinngg():
     
     #%% Detect and remove arousal and wake: useful for classifying only sleep stages
     def remove_arousals(self, hypno_labels, input_feats):
-        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if (hypno_labels[i,1]==1)]
+        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if ((hypno_labels[i,1]==1) or (hypno_labels[i,1]==2))]
         out_feats  = np.delete(input_feats, bad, axis=2)
         out_labels = np.delete(hypno_labels, bad, axis=0)
         
@@ -958,6 +1185,19 @@ class ssccoorriinngg():
         out = out[:,0:5]
         
         return out
+    #%% Create one column of binary values for each class    
+    def binary_labels_creator_categories(self, labels):
+        ''' column 0: wake - column 1: N1 - column 2: N2 - column 3: SWS - column 4: REM
+        '''
+        from sklearn.preprocessing import OneHotEncoder
+        from sklearn.compose import ColumnTransformer
+                
+        ct = ColumnTransformer([("col", OneHotEncoder(), [0])], remainder = 'passthrough')
+        labels = ct.fit_transform(labels)
+        
+        labels = labels[:,0:5]
+        
+        return labels
     
     #%% Save the feature-label pair as a pickle file
     def save_dictionary(self, path, fname, labels_dic, features_dic):
@@ -1085,17 +1325,25 @@ class ssccoorriinngg():
             mean_prec     = np.row_stack((mean_prec, tmp_prec))
             mean_recall   = np.row_stack((mean_recall, tmp_recall))
             mean_f1_score = np.row_stack((mean_f1_score, tmp_f1_score))
-            # Show results
-            Acc_Mean           = np.nanmean(mean_acc, axis = 0)
-            Recall_Mean        = np.nanmean(mean_recall, axis = 0)
-            Prec_Mean          = np.nanmean(mean_prec, axis = 0)
-            F1_score_Mean      = np.nanmean(mean_f1_score, axis = 0)
+
             # remove temp arrays
             del tmp_acc, tmp_recall, tmp_prec, tmp_f1_score
             
+        # Show results - Mean
+        Acc_Mean           = np.nanmean(mean_acc, axis = 0)
+        Recall_Mean        = np.nanmean(mean_recall, axis = 0)
+        Prec_Mean          = np.nanmean(mean_prec, axis = 0)
+        F1_score_Mean      = np.nanmean(mean_f1_score, axis = 0)
+        
+        # Show results
+        Acc_std           = np.nanstd(mean_acc, axis = 0)
+        Recall_std        = np.nanstd(mean_recall, axis = 0)
+        Prec_std          = np.nanstd(mean_prec, axis = 0)
+        F1_score_std      = np.nanstd(mean_f1_score, axis = 0)
         # Show results
         print(f'Mean Acc, Recall, Precision, and F1-score of leave-one-out cross-validation for Wake, N1, N2, SWS, and REM, respectively:\n{Acc_Mean}\n{Recall_Mean}\n{Prec_Mean}\n{F1_score_Mean}')
-        
+        #print(f'std Acc, Recall, Precision, and F1-score of leave-one-out cross-validation for Wake, N1, N2, SWS, and REM, respectively:\n{Acc_std}\n{Recall_std}\n{Prec_std}\n{F1_score_std}')
+
         
     #%% def comparative hypnograms (True vs predicted)
 
@@ -1123,9 +1371,8 @@ class ssccoorriinngg():
         y.append(p)
         x.append(i)
         
-    
         #plt.figure(figsize = [20,14])
-        fig, axs = plt.subplots(2,1)
+        fig, axs = plt.subplots(2,1, figsize=(26, 14))
         plt.axes(axs[0])
         plt.step(x, y, where='post')
         plt.yticks([0,-1,-2,-3,-4], ['Wake','REM', 'N1', 'N2', 'SWS'])
@@ -1191,6 +1438,14 @@ class ssccoorriinngg():
                 elif ((rem[i+1] - rem[i] != 1) and (rem[i] - rem[i-1] != 1)):
                     plt.plot([rem[i], rem[i]+1], [-1,-1] , linewidth = 5, color = 'red')
                     
+    #%% save figure
+    def save_figure(self, directory, saving_name, dpi, saving_format = '.png',
+                    full_screen = False):
+        if full_screen == True:
+            manager = plt.get_current_fig_manager()
+            manager.window.showMaximized()
+        plt.savefig(directory+saving_name+saving_format,dpi = dpi)    
+        
     #%% Add time-dependency to the featureset
     def add_time_dependence_to_features(self, featureset, n_time_dependence=3):
         ''' n_time_dependece: number of epochs preceding and proceeding the
