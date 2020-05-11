@@ -12,7 +12,7 @@ The main aim of this project is to ease sleep analysis and research. So, everyon
 
 Interesting!
 
-![Sample_Hypno](https://user-images.githubusercontent.com/48684369/79888381-d4002d00-83fc-11ea-8a14-af70befb0327.png)
+![test_subject_14](https://user-images.githubusercontent.com/48684369/81552216-67d17300-9383-11ea-892d-46f5c6caef30.png)
 ## Description of class
 In this section, we define the capabilities of **ssccoorriinngg** sleep scorer. This class comprises feature extraction method, feature selection methods, various machine-learning classifiers, and grid/randomized search methods to tune hyper parameters. The descriptions can be found below. To sue the class please read this page thoroughly.
 
@@ -286,7 +286,66 @@ This function is to remove the labels and data from the channels which have alre
            Features            : Input features
     OUTPUTS:
            Features            : Features without NaN
+           
+### 5.12. replace_inf_with_mean(Features)
 
+    INPUTS:
+           Features            : Input features
+    OUTPUTS:
+           Features            : Features without inf
+      
+ ### 5.13.  binary_to_single_column_label(y_pred)     
+ 
+    INPUTS:
+           y_pred              : binaty labels (each class is a column and each row is an observation)
+    OUTPUTS:
+           hyp_pred            : Output as one column (wake:0, N1:1, N2:2, N3:3, REM: 4)
+           
+### 5.14. plot_hyp(hyp, mark_REM = 'active')
+
+    INPUTS:
+           hyp                 : Hypnogram in the form of 1 column with different values.
+           mark_REM            : if = 'active', REM periods are marked in red.
+           
+    OUTPUTS:
+           Plot_hyp            : Hypnogram plot
+
+### 5.15. plot_comparative_hyp(hyp_true, hyp_pred, mark_REM = 'active'):
+
+    INPUTS:
+           hyp_true            : Hypnogram (TRUE VALUES) in the form of 1 column with different values.
+           hyp_pred            : Hypnogram (PREDICTED VALUES) in the form of 1 column with different values.
+           mark_REM            : if = 'active', REM periods are marked in red.
+           
+    OUTPUTS:
+           Plot_hyp            : Hypnogram plot
+
+### 5.16. Mean_leaveOneOut(metrics_per_fold) 
+
+    INPUTS:
+           metrics_pre_fold    : Outcome metrics of each fold as a dictionary.
+           
+    OUTPUTS:
+           print               : Mean values of all metrics.
+           
+### 5.17. save_figure(directory, saving_name, dpi, saving_format = '.png',full_screen = False)
+
+    INPUTS: 
+           directory    : Location to save (final FOLDER)
+           saving_name  : FILENAME to save in "path"
+           dpi          : sets quality of saved image
+           saving_format: format, can be anything, e.g. .png, .jpg. etc
+           cv           : Cross-validation order
+           
+### 5.18. add_time_dependence_to_features(featureset, n_time_dependence=3)   
+
+    INPUTS:
+           featurest           : featureset which is already made.
+           n_time_dependence   : number of epochs (forward and  backward) to consider as input for the current epoch.
+           
+    OUTPUTS:
+           X_new               : New featureset
+           
 ## Sample code to use methods
 to see examples of using code, see example folder.
 
