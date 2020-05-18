@@ -859,14 +859,14 @@ class ssccoorriinngg():
 
         ######################## DEFINING FEATURE SELECTION METHODS ######################
     #%% Feature selection section - 1. Boruta method
-    def FeatSelect_Boruta(self, X,y,max_depth = 7):
+    def FeatSelect_Boruta(self, X,y, max_iter = 50, max_depth = 7):
         #import lib
         tic = time.time()
         from boruta import BorutaPy
         #instantiate an estimator for Boruta. 
         rf = RandomForestClassifier(n_jobs=-1, class_weight=None, max_depth=max_depth)
         # Initiate Boruta object
-        feat_selector = BorutaPy(rf, n_estimators='auto', verbose=2, random_state=0)
+        feat_selector = BorutaPy(rf, max_iter = max_iter, n_estimators='auto', verbose=2, random_state=0)
         # fir the object
         feat_selector.fit(X=X, y=y)
         # Find index of selected feats
@@ -946,6 +946,19 @@ class ssccoorriinngg():
     
     ######################## DEFINING SUPERVISED CLASSIFIERs ######################
     
+    #%% Naive Bayes
+    def Naive_bayes_clissifer(self, X_train, y_train,X_test, y_test):
+        from sklearn.naive_bayes import GaussianNB
+        classifier_gnb = GaussianNB()
+        
+        if np.shape(y_train)[1] > 1:
+            y_train = self.binary_to_single_column_label(y_train)
+            y_train = np.ravel(y_train)
+            
+        classifier_gnb.fit(X_train, y_train)
+        y_pred = classifier_gnb.predict(X_test)
+
+        return y_pred
     #%% Random Forest
     def RandomForest_Modelling(self, X_train, y_train,X_test, y_test, n_estimators = 500):
         
@@ -956,17 +969,22 @@ class ssccoorriinngg():
         return y_pred
     
     #%% Kernel SVM
-    def KernelSVM_Modelling(self, X, y, cv, scoring, kernel):
+    def KernelSVM_Modelling(self,X_train, y_train,X_test, y_test, kernel='rbf'):
         tic = time.time()
         from sklearn.svm import SVC
         classifier_SVM = SVC(kernel = kernel)
-        results_SVM = cross_validate(estimator = classifier_SVM, X = X, 
-                                 y = y, scoring = scoring, cv = KFold(n_splits = cv))
+        #results_SVM = cross_validate(estimator = classifier_SVM, X = X, 
+        #                         y = y, scoring = scoring, cv = KFold(n_splits = cv))
         #Acc_cv10_SVM = accuracies_SVM.mean()
         #std_cv10_SVM = accuracies_SVM.std()
         #print(f'Cross validation finished: Mean Accuracy {Acc_cv10_SVM} +- {std_cv10_SVM}')
+        if np.shape(y_train)[1] > 1:
+            y_train = self.binary_to_single_column_label(y_train)
+            y_train = np.ravel(y_train)
+        classifier_SVM.fit(X_train, y_train)
+        y_pred = classifier_SVM.predict(X_test)
         print('Cross validation for SVM took: {} secs'.format(time.time()-tic))
-        return results_SVM
+        return y_pred
     
     
     #%% Logistic regression
@@ -983,19 +1001,29 @@ class ssccoorriinngg():
         return results_LR
     #%% XGBoost
     def XGB_Modelling(self, X_train, y_train,X_test, y_test, n_estimators = 1000, 
-                      cv = 10 , max_depth=3, learning_rate=.1):
+                      max_depth=3, learning_rate=.1, plot_confusion = True):
         tic = time.time()
         from xgboost import XGBClassifier
         classifier_xgb = XGBClassifier(n_estimators = n_estimators, max_depth = max_depth,
                                        learning_rate = learning_rate)
+        
+        if np.shape(y_train)[1] > 1:
+            y_train = self.binary_to_single_column_label(y_train)
+            y_train = np.ravel(y_train)
+            
         classifier_xgb.fit(X_train, y_train)
         y_pred = classifier_xgb.predict(X_test)
-        #results_xgb = cross_validate(estimator = classifier_xgb, X = X, 
-        #                         y = y, scoring = scoring, cv = KFold(n_splits = cv))
-        #Acc_cv10_xgb = accuracies_xgb.mean()
-        #std_cv10_xgb = accuracies_xgb.std()
-        #print(f'Cross validation finished: Mean Accuracy {Acc_cv10_xgb} +- {std_cv10_xgb}')
-        print('Cross validation for xgb took: {} secs'.format(time.time()-tic))
+
+        y_pred = np.expand_dims(y_pred, axis=1)
+        '''
+        if plot_confusion == True:
+            from sklearn.metrics import plot_confusion_matrix
+            labels = ['Wake', 'N1', 'N2','N3','REM']
+            if np.shape(y_pred)[1] != np.shape(y_test)[1]:
+                y_true = self.binary_to_single_column_label(y_test)
+            plot_confusion_matrix(classifier_xgb, X_test, y_true, normalize='all')  # doctest: +SKIP
+            plt.show()  # doctest: +SKIP
+            '''
         return y_pred
     
     #%% ANN
@@ -1029,9 +1057,133 @@ class ssccoorriinngg():
         
         return classifier
     
+    #%% Extra randomized trees
+    def Extra_randomized_trees(self, X_train, y_train, X_test,y_test, n_estimators= 250, max_depth = None, min_samples_split =2,
+                               max_features="sqrt"):
+        
+        from sklearn.ensemble import ExtraTreesClassifier
+        
+        clf = ExtraTreesClassifier(n_estimators=n_estimators, max_depth=max_depth,
+          min_samples_split=min_samples_split, random_state=0)
+        
+        clf.fit(X_train, y_train)
+        y_pred = clf.predict(X_test)
+    
+        return y_pred
+    #%% Ada boost
+    def ADAboost_Modelling(self, X_train, y_train,X_test, y_test, n_estimators = 250):
+        
+        from sklearn.ensemble import AdaBoostClassifier
+        clf = AdaBoostClassifier(n_estimators=n_estimators)
+        
+        if np.shape(y_train)[1] > 1:
+            y_train = self.binary_to_single_column_label(y_train)
+            y_train = np.ravel(y_train)
+            
+        clf.fit(X_train, y_train)
+        y_pred = clf.predict(X_test)
+        # Add dimension
+        y_pred = np.expand_dims(y_pred, axis=1)
+        
+        return y_pred
+    #%% Gradient boosting ensemble method
+    def gradient_boosting_classifier(self,  X_train, y_train,X_test, y_test, 
+                                     n_estimators = 250, learning_rate= 1.0, max_depth=1):
+    
+        from sklearn.ensemble import GradientBoostingClassifier
+        
+        clf = GradientBoostingClassifier(n_estimators=n_estimators, learning_rate=learning_rate,
+         max_depth=max_depth, random_state=0)
+        
+        if np.shape(y_train)[1] > 1:
+            y_train = self.binary_to_single_column_label(y_train)
+            y_train = np.ravel(y_train)
+        
+        clf.fit(X_train, y_train)
+        
+        y_pred = clf.predict(X_test)
+        y_pred = np.expand_dims(y_pred, axis=1)
+        
+        return y_pred
+    
+    #%% Ensemble voting classifiers
+    def Ensemble_voting_classifier(self, X_train, y_train,X_test, y_test, n_estimators_RF=250,
+                                   n_estimators_GBC=250,n_estimators_XGB=250,learning_rate_XGB = .1,
+                                   max_depth_XGB = 3):
+        from sklearn.ensemble import VotingClassifier, RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier
+        from xgboost import XGBClassifier
+        from sklearn.svm import SVC
+        
+        
+        # Define separate classifiers
+         
+        classifier_SVM = SVC(kernel = 'rbf')
+        classifier_RF  = RandomForestClassifier(n_estimators = n_estimators_RF)
+        classifier_GBC = GradientBoostingClassifier(n_estimators=n_estimators_GBC)
+        classifier_XGB = XGBClassifier(n_estimators = n_estimators_XGB, max_depth = max_depth_XGB,
+                                       learning_rate = learning_rate_XGB)
+        # Apply the voting classifier
+        eclf = VotingClassifier(estimators=[('rf', classifier_RF), ('svm', classifier_SVM), 
+                                            ('xgb',classifier_XGB), ('gbc', classifier_GBC)], voting='hard')
+        
+        # make y_train compatible
+        if np.shape(y_train)[1] > 1:
+            y_train = self.binary_to_single_column_label(y_train)
+            y_train = np.ravel(y_train)
+            
+        # Fitting
+        eclf.fit(X_train, y_train)
+        
+        # Prediction
+        y_pred = eclf.predict(X_test)
+        
+        return y_pred
+        
+    #%% Stacked classifier
+    def Stacking_classifier(self, X_train, y_train,X_test, y_test, n_estimators_RF=250,
+                                   n_estimators_GBC=250,n_estimators_XGB=250,learning_rate_XGB = .1,
+                                   max_depth_XGB = 3):
+        from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier
+        from xgboost import XGBClassifier
+        from sklearn.svm import SVC
+        from sklearn.ensemble import StackingClassifier
+        
+        # Define separate classifiers
+
+        classifier_SVM = SVC(kernel = 'rbf')
+        classifier_RF  = RandomForestClassifier(n_estimators = n_estimators_RF)
+        classifier_GBC = GradientBoostingClassifier(n_estimators=n_estimators_GBC)
+        classifier_XGB = XGBClassifier(n_estimators = n_estimators_XGB, max_depth = max_depth_XGB,
+                                       learning_rate = learning_rate_XGB)
+        
+        # Apply the voting classifier
+        estimators=[('rf', classifier_RF),('xgb',classifier_XGB), ('gbc', classifier_GBC)]
+        
+        stacking_clf = StackingClassifier(estimators=estimators, final_estimator=classifier_SVM)
+        
+        # make y_train compatible
+        if np.shape(y_train)[1] > 1:
+            y_train = self.binary_to_single_column_label(y_train)
+            y_train = np.ravel(y_train)
+            
+        # Fitting
+        stacking_clf.fit(X_train, y_train)
+        
+        # Prediction
+        y_pred = stacking_clf.predict(X_test)
+        
+        return y_pred
+        
     #%% Evaluation using multi-label confusion matrix
     def multi_label_confusion_matrix(self,y_true, y_pred):
-        from sklearn.metrics import multilabel_confusion_matrix
+        from sklearn.metrics import multilabel_confusion_matrix, cohen_kappa_score
+        
+        try: 
+            if np.shape(y_true)[1] != np.shape(y_pred)[1]:
+                y_true = self.binary_to_single_column_label(y_true)
+        except IndexError:
+            y_true = self.binary_to_single_column_label(y_true)
+            
         mcm = multilabel_confusion_matrix(y_true, y_pred)
         tn     = mcm[:, 0, 0]
         tp     = mcm[:, 1, 1]
@@ -1041,11 +1193,14 @@ class ssccoorriinngg():
         prec   = tp / (tp + fp)
         f1_sc  = 2 * Recall * prec / (Recall + prec)
         Acc = (tp + tn) / (tp + fp + fn+ tn)
+        kappa = cohen_kappa_score(y_true, y_pred)
         print(f'Accuracy for Wake,N1,N2,N3,REM were respectively: {Acc}')
         print(f'Precision for Wake,N1,N2,N3,REM were respectively: {prec}')
         print(f'Recall for Wake,N1,N2,N3,REM were respectively: {Recall}')
         print(f'f1-score for Wake,N1,N2,N3,REM were respectively: {f1_sc}')
-        return Acc, Recall, prec, f1_sc
+        print(f'Cohen kappa was calculated as: {kappa}')
+        return Acc, Recall, prec, f1_sc,mcm
+    
     #%% Randomized and grid search 
     ######################## DEFINING RANDOMIZED SEARCH ###########################
     #       ~~~~~~!!!!! THIS IS FOR RANDOM FOREST AT THE MOMENT ~~~~~~!!!!!!
@@ -1185,6 +1340,57 @@ class ssccoorriinngg():
         out = out[:,0:5]
         
         return out
+    #%% Plot confusion matrix
+    def plot_confusion_matrix(self, y_test,y_pred, target_names = ['Wake','N1','N2','SWS','REM'],
+                          title='Confusion matrix of ssccoorriinngg algorithm',
+                          cmap=None,
+                          normalize=True):
+    
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import itertools
+        
+        if np.shape(y_test)[1] > 1:
+            y_test = self.binary_to_single_column_label(y_test)
+            y_test = np.ravel(y_test)
+    
+        cm = confusion_matrix(y_test, y_pred)
+        accuracy = np.trace(cm) / float(np.sum(cm))
+        misclass = 1 - accuracy
+    
+        if cmap is None:
+            cmap = plt.get_cmap('Blues')
+    
+        plt.figure(figsize=(8, 6))
+        plt.imshow(cm, interpolation='nearest', cmap=cmap)
+        plt.title(title)
+        plt.colorbar()
+    
+        if target_names is not None:
+            tick_marks = np.arange(len(target_names))
+            plt.xticks(tick_marks, target_names, rotation=45)
+            plt.yticks(tick_marks, target_names)
+    
+        if normalize:
+            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+    
+    
+        thresh = cm.max() / 1.5 if normalize else cm.max() / 2
+        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+            if normalize:
+                plt.text(j, i, "{:0.4f}".format(cm[i, j]),
+                         horizontalalignment="center",
+                         color="white" if cm[i, j] > thresh else "black")
+            else:
+                plt.text(j, i, "{:,}".format(cm[i, j]),
+                         horizontalalignment="center",
+                         color="white" if cm[i, j] > thresh else "black")
+    
+    
+        plt.tight_layout()
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label\naccuracy={:0.4f}; misclass={:0.4f}'.format(accuracy, misclass))
+        plt.show()
     #%% Create one column of binary values for each class    
     def binary_labels_creator_categories(self, labels):
         ''' column 0: wake - column 1: N1 - column 2: N2 - column 3: SWS - column 4: REM
@@ -1447,16 +1653,20 @@ class ssccoorriinngg():
         plt.savefig(directory+saving_name+saving_format,dpi = dpi)    
         
     #%% Add time-dependency to the featureset
-    def add_time_dependence_to_features(self, featureset, n_time_dependence=3):
-        ''' n_time_dependece: number of epochs preceding and proceeding the
-        current investigational epoch '''
+    def add_time_dependence_to_features(self, featureset, n_time_dependence=3,
+                                        padding_type = 'sequential'):
+        
+        ''' n_time_dependece: 
+            number of epochs preceding and proceeding the current investigational epoch.
+            '''
         # Calculate number of features (columns)
         nf = np.shape(featureset)[1]
         #time dependence
         td = n_time_dependence
         # Initializa new feature array
         X_new = np.empty((np.shape(featureset)[0], nf * (2*td+1)))
-        # Define the for loop:
+        
+        # Fill in the values for the AREA BETWEEN "TD" UNTIL "len(data)-td")
         for i in np.arange(td, np.shape(featureset)[0] - td):
             # Current epoch goes into the middle column
             X_new[i, td * nf : (td+1) * nf]  = featureset[i,:]
@@ -1466,6 +1676,62 @@ class ssccoorriinngg():
                 X_new[i,nf * (td-j) : nf* (td-j+1)] = featureset [i-j,:]
                 # Fill in next epochs
                 X_new[i,nf * (td+j) : nf* (td+j+1)] = featureset [i+j,:]
+        del i,j
+        if padding_type == 'same':
+            # Fill in the values for the AREA BEFORE "TD"
+            for i in np.arange(0,td):
+                # Current epoch goes into the middle column
+                X_new[i, td * nf : (td+1) * nf]  = featureset[i,:]  
+                # proceeding and preceding epochs come here:
+                for j in np.arange(1, td+1):
+                    # Fill in previous epochs with the same values as the current
+                    X_new[i,nf * (td-j) : nf* (td-j+1)] = featureset [i,:]
+                    # Fill in next epochs
+                    X_new[i,nf * (td+j) : nf* (td+j+1)] = featureset [i+j,:]
+            del i,j       
+            # Fill in the values for the AREA AFTER "TD"
+            for i in np.arange(np.shape(featureset)[0] - td, np.shape(featureset)[0]):
+                # Current epoch goes into the middle column
+                X_new[i, td * nf : (td+1) * nf]  = featureset[i,:]
+                for j in np.arange(1, td+1):
+                    # Fill in previous epochs
+                    X_new[i,nf * (td-j) : nf* (td-j+1)] = featureset [i-j,:]
+                    # Fill in next epochs
+                    X_new[i,nf * (td+j) : nf* (td+j+1)] = featureset [i,:]
+            del i,j        
+        
+        if padding_type == 'sequential':
+            # Fill in the values for the AREA BEFORE "TD"
+            for i in np.arange(0,td):
+                # Current epoch goes into the middle column
+                X_new[i, td * nf : (td+1) * nf]  = featureset[i,:]  
+                # proceeding and preceding epochs come here:
+                for j in np.arange(1, td+1):
+                    
+                    # Make usre if there is an epoch before the current:
+                    if i - j >= 0:
+                        # Fill in previous epochs with the values of previous section
+                        X_new[i,nf * (td-j) : nf* (td-j+1)] = featureset [i-j,:]
+                    else:
+                        # Fill in previous epochs with the values of 0th epoch
+                        X_new[i,nf * (td-j) : nf* (td-j+1)] = featureset [0,:]
+                    # Fill in next epochs
+                    X_new[i,nf * (td+j) : nf* (td+j+1)] = featureset [i+j,:]
+            del i,j        
+            # Fill in the values for the AREA AFTER "TD"
+            for i in np.arange(np.shape(featureset)[0] - td, np.shape(featureset)[0]):
                 
-                
+                # Current epoch goes into the middle column
+                X_new[i, td * nf : (td+1) * nf]  = featureset[i,:]
+
+                for j in np.arange(1, td+1):
+                    # Make usre if there is an epoch after the current:
+                    if (i + j) <= np.shape(featureset)[0] - 1:
+                        # Fill in next epochs
+                        X_new[i,nf * (td+j) : nf* (td+j+1)] = featureset [i+j,:]
+                    else: 
+                        X_new[i,nf * (td+j) : nf* (td+j+1)] = featureset [-1,:]
+                    # Fill in previos epochs
+                    X_new[i,nf * (td-j) : nf* (td-j+1)] = featureset [i-j,:]
+                    
         return X_new
