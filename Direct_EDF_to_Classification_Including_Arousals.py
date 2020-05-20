@@ -30,7 +30,7 @@ from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, preci
 
 #####===================== Defining project folder========================#####
 
-project_folder = "F:/Loreta_data/"
+project_folder = "/project/3013080.02/ml_project/"
 #project_folder = "P:"
 
 #####===================== Reading EDF data files=========================#####
@@ -187,7 +187,7 @@ print('Total feature extraction of subjects took {tic_tot - time.time()} secs.')
 
 #####====================== Save extracted features ======================#####      
 
-path     = project_folder +"Features/"
+path     = project_folder +"features/"
 filename = 'sleep_scoring_WithArousal_Fp1-Fp2_200520_OnlyRemoving-1'
 Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
 
@@ -359,7 +359,6 @@ Object.plot_confusion_mat_subjective(y_true=y_test, y_pred=y_pred,
                              subjects_data_dic=subjects_dic)
 
 ########========================== Save figure =======================#########
-"""
 Object.save_figure(saving_format = '.png',
                    directory = '/project/3013080.02/Mahdad/Github/ssccoorriinngg/Plots/v0.2/Fp1-Fp2/',
                    saving_name = 'test_subject_all' + str(c_subj), dpi = 900,

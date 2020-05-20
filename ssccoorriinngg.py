@@ -455,7 +455,7 @@ class ssccoorriinngg():
         eeg_band_fft      = dict()
         freq_ix           = dict()
         freq_ix_welch     = dict()
-        Features = np.empty((0, 75))
+        Features = np.empty((0, 79))
         # Settings of peridogram    
         Window = 'hann'
         # zero-padding added with respect to (Nfft=2^(nextpow2(len(window))))
@@ -707,13 +707,13 @@ class ssccoorriinngg():
             Spectral_mean = 1 / (freq_ix['Beta'][-1] - freq_ix['Delta'][0]) * (Pow_Delta + 
                     Pow_Theta_low + Pow_Theta_high + Pow_Alpha + Pow_Beta + 
                     Pow_Sigma) 
-            
+            """ 
             ''' Correlation Dimension Feature '''
             try:
                 cdf = nolds.corr_dim(data,1)
             except np.linalg.LinAlgError:
                 cdf = np.NaN
-                
+            """    
             ''' Detrended Fluctuation Analysis ''' 
             try:
                 DFA = pyeeg.dfa(data)
@@ -732,8 +732,23 @@ class ssccoorriinngg():
             except np.linalg.LinAlgError:
                 PFD = np.NaN
             
-            ''' Spectral edge frequency features --> SEF50 and SEF95'''
+            '''Waveform length(WL)'''
+            WL = sum(abs(np.diff(data)))
             
+            '''Zerocrossing(ZC) '''
+            zero_crossings = np.where(np.diff(np.signbit(data)))[0]
+            num_ZC = (len(zero_crossings))
+            
+            ''' Mean absolute value ''' 
+            MAV = sum(np.abs(data)) / len(data)
+            
+            '''Simple Square Integral (SSI)'''
+            SSI = sum(np.abs(data)**2)
+            
+            ''' Root mean square '''
+            rms = np.sqrt(1 / len(data) * sum(np.abs(data)**2))
+            ''' Spectral edge frequency features --> SEF50 and SEF95'''   
+            ''' Spectral edge frequency features --> SEF50 and SEF95'''
             # Imtiaz et al. proposed the freq band of investigation: 8 - 16 Hz
             data_SEF =  butter_bandpass_filter(data=data, lowcut=8, highcut=16, fs=fs, order=2)
             
@@ -836,7 +851,8 @@ class ssccoorriinngg():
                     Pow_welch_Alpha, Pow_welch_Beta, Pow_welch_Sigma, Pow_welch_Sigma_slow,
                     Pow_welch_Delta_rel, Pow_welch_Theta_low_rel, Pow_welch_Theta_high_rel, 
                     Pow_welch_Alpha_rel, Pow_welch_Beta_rel, Pow_welch_Sigma_rel, 
-                    Pow_welch_Sigma_slow_rel, SEF50, SEF95, SEFd, cdf, DFA, Hurst, PFD]
+                    Pow_welch_Sigma_slow_rel, SEF50, SEF95, SEFd, DFA, PFD, Hurst,
+                    WL, num_ZC, MAV,  SSI, rms]
             
             Features = np.row_stack((Features,feat))
         
@@ -2011,20 +2027,4 @@ class ssccoorriinngg():
             
             # Update the counter
             counter = counter + current_size
-            
-            del current_size, y_pred_tmp, y_true_tmp
-               
-                # Current epoch goes into the middle column
-                X_new[i, td * nf : (td+1) * nf]  = featureset[i,:]
-
-                for j in np.arange(1, td+1):
-                    # Make usre if there is an epoch after the current:
-                    if (i + j) <= np.shape(featureset)[0] - 1:
-                        # Fill in next epochs
-                        X_new[i,nf * (td+j) : nf* (td+j+1)] = featureset [i+j,:]
-                    else: 
-                        X_new[i,nf * (td+j) : nf* (td+j+1)] = featureset [-1,:]
-                    # Fill in previos epochs
-                    X_new[i,nf * (td-j) : nf* (td-j+1)] = featureset [i-j,:]
-                    
-        return X_new
+                
