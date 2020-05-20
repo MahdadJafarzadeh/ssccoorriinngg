@@ -1175,11 +1175,7 @@ class ssccoorriinngg():
         return y_pred
         
     #%% Evaluation using multi-label confusion matrix
-<<<<<<< HEAD
     def multi_label_confusion_matrix(self,y_true, y_pred, print_results = 'on'):
-=======
-    def multi_label_confusion_matrix(self,y_true, y_pred):
->>>>>>> 42f809976afe714dfcc7d412deedfc048f3545e5
         from sklearn.metrics import multilabel_confusion_matrix, cohen_kappa_score
         
         try: 
@@ -1198,22 +1194,16 @@ class ssccoorriinngg():
         f1_sc  = 2 * Recall * prec / (Recall + prec)
         Acc = (tp + tn) / (tp + fp + fn+ tn)
         kappa = cohen_kappa_score(y_true, y_pred)
-<<<<<<< HEAD
+        
         if print_results == 'on':
             print(f'Accuracy for Wake,N1,N2,N3,REM were respectively: {Acc}')
             print(f'Precision for Wake,N1,N2,N3,REM were respectively: {prec}')
             print(f'Recall for Wake,N1,N2,N3,REM were respectively: {Recall}')
             print(f'f1-score for Wake,N1,N2,N3,REM were respectively: {f1_sc}')
             print(f'Cohen kappa was calculated as: {kappa}')
+            
         return Acc, Recall, prec, f1_sc, kappa, mcm
-=======
-        print(f'Accuracy for Wake,N1,N2,N3,REM were respectively: {Acc}')
-        print(f'Precision for Wake,N1,N2,N3,REM were respectively: {prec}')
-        print(f'Recall for Wake,N1,N2,N3,REM were respectively: {Recall}')
-        print(f'f1-score for Wake,N1,N2,N3,REM were respectively: {f1_sc}')
-        print(f'Cohen kappa was calculated as: {kappa}')
-        return Acc, Recall, prec, f1_sc,mcm
->>>>>>> 42f809976afe714dfcc7d412deedfc048f3545e5
+
     
     #%% Randomized and grid search 
     ######################## DEFINING RANDOMIZED SEARCH ###########################
@@ -1713,17 +1703,10 @@ class ssccoorriinngg():
         plt.savefig(directory+saving_name+saving_format,dpi = dpi)    
         
     #%% Add time-dependency to the featureset
-<<<<<<< HEAD
     def add_time_dependence_bidirectional(self, featureset, n_time_dependence=3,
                                         padding_type = 'sequential'):
         
         ''' n_time_dependece (forward and backward): 
-=======
-    def add_time_dependence_to_features(self, featureset, n_time_dependence=3,
-                                        padding_type = 'sequential'):
-        
-        ''' n_time_dependece: 
->>>>>>> 42f809976afe714dfcc7d412deedfc048f3545e5
             number of epochs preceding and proceeding the current investigational epoch.
             '''
         # Calculate number of features (columns)
@@ -1785,9 +1768,9 @@ class ssccoorriinngg():
                     # Fill in next epochs
                     X_new[i,nf * (td+j) : nf* (td+j+1)] = featureset [i+j,:]
             del i,j        
+            
             # Fill in the values for the AREA AFTER "TD"
             for i in np.arange(np.shape(featureset)[0] - td, np.shape(featureset)[0]):
-<<<<<<< HEAD
                 
                 # Current epoch goes into the middle column
                 X_new[i, td * nf : (td+1) * nf]  = featureset[i,:]
@@ -2030,10 +2013,7 @@ class ssccoorriinngg():
             counter = counter + current_size
             
             del current_size, y_pred_tmp, y_true_tmp
-            
-        
-=======
-                
+               
                 # Current epoch goes into the middle column
                 X_new[i, td * nf : (td+1) * nf]  = featureset[i,:]
 
@@ -2048,4 +2028,3 @@ class ssccoorriinngg():
                     X_new[i,nf * (td-j) : nf* (td-j+1)] = featureset [i-j,:]
                     
         return X_new
->>>>>>> 42f809976afe714dfcc7d412deedfc048f3545e5
