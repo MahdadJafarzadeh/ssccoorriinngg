@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue May  5 12:44:03 2020
-
-@author: mahjaf
-"""
-
-# -*- coding: utf-8 -*-
-"""
 Created on Wed Apr 22 10:07:37 2020
 
 @author: mahjaf
@@ -33,11 +26,11 @@ import matplotlib.pyplot as plt
 import pickle
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import RandomizedSearchCV
-from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, precision_score, recall_score, f1_score, classification_report, plot_confusion_matrix
 
 #####===================== Defining project folder========================#####
 
-project_folder = "C:/Users/mahda/Documents/ssccoorriinngg/required_info/"
+project_folder = "F:/Loreta_data/"
 #project_folder = "P:"
 
 #####===================== Reading EDF data files=========================#####
@@ -66,8 +59,6 @@ metrics_per_fold = {}
 #####============= create an object of ssccoorriinngg class ==============#####
 
 Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
-"""
-
 
 tic_tot = time.time()
 
@@ -79,7 +70,7 @@ np.seterr(divide='ignore', invalid='ignore')
 for idx, c_subj in enumerate(subj_c):
     print (f'Analyzing Subject Number: {c_subj}')
     ## Read in data
-    file     = project_folder + "/3013080.02/ml_project/test_data/LK_" + str(int(c_subj)) + "_1.EDF"
+    file     = project_folder + "data/LK_" + str(int(c_subj)) + "_1.EDF"
     tic      = time.time()
     data     = mne.io.read_raw_edf(file)
 
@@ -128,11 +119,12 @@ for idx, c_subj in enumerate(subj_c):
     
 #####===================== Reading hypnogram data ========================#####
 
-    hyp = loadtxt(project_folder +"/3013065.04/Depressed_Loreta/hypnograms/LK_" + 
+    hyp = loadtxt(project_folder +"hypnograms/LK_" + 
                 str(int(c_subj)) + ".txt", delimiter="\t")
     
     ### Create sepereate data subfiles based on hypnogram (N1, N2, N3, NREM, REM) 
     tic      = time.time()
+    
 #####================= Concatenation of selected channels ================#####   
     # Calculate referenced channels: 
     data_epoched_selected = data_epoched[Idx] - data_epoched[Idx_Mastoids]
@@ -147,21 +139,24 @@ for idx, c_subj in enumerate(subj_c):
     print('Time to split sleep stages per epoch: {}'.format(time.time()-tic))
     
     #%% Analysis section
-#####================= remove bad chanbnels and arousals =================#####   
+#####================= remove chanbnels without scroing ==================#####   
     
     # assign the proper data and labels
     x_tmp_init = data_epoched_selected
     y_tmp_init = hyp
-    # Remove bad signals (hyp == -1)
-    x_tmp, y_tmp =  Object.remove_bad_signals(hypno_labels = y_tmp_init,
+    
+    # Remove "scores = -1"
+    x_tmp, y_tmp =  Object.remove_channels_without_scoring(hypno_labels = y_tmp_init,
                                               input_feats = x_tmp_init)
     
-#####============= remove stages contaminated with arousal ===============#####      
-    
-    x_tmp, y_tmp = Object.remove_arousals(hypno_labels = y_tmp, input_feats = x_tmp)
-    # Create binary labels array
-    yy = Object.binary_labels_creator_categories(y_tmp)
+#####============= Create a one hot encoding form of labels ==============##### 
 
+    # Create binary labels array
+    yy = Object.One_hot_encoding(y_tmp)     
+    
+    # Ensure all the input labels have a class
+    Object.Unlabaled_rows_detector(yy)
+    
     # Initialize feature array:
     Feat_all_channels = np.empty((np.shape(x_tmp)[-1],0))
       
@@ -181,39 +176,34 @@ for idx, c_subj in enumerate(subj_c):
     # Defining dictionary to save hypnogram PER SUBJECT
     hyp_dic["hyp{}".format(c_subj)] = yy
     
-    #####============================= Save per case =========================#####
-    path     = project_folder +"/3013080.02/ml_project/scripts/1D_TimeSeries/features/percase"
-    filename = "/LK__"+ str(int(c_subj))
-    Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
-    
 #####=============== Removing variables for next iteration ===============#####      
     del x_tmp, y_tmp, feat_temp, yy
     toc = time.time()
-    print(f'Features and hypno of subject {c_subj} were successfully added to dictionary')
     
     print('Feature extraction of subject {c_subj} has been finished.')   
 
 print('Total feature extraction of subjects took {tic_tot - time.time()} secs.')
 #%% Save created features and labels
 
-
 #####====================== Save extracted features ======================#####      
 
-path     = project_folder +"/3013080.02/ml_project/scripts/1D_TimeSeries/features/"
-filename = 'sleep_scoring_NoArousal_Fp1-Fp2_full_'
+path     = project_folder +"Features/"
+filename = 'sleep_scoring_WithArousal_Fp1-Fp2_200520_OnlyRemoving-1'
 Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
 
+"""
 
 #%% Load featureset and labels
-"""
+
 path                  =  project_folder
-filename              = "sleep_scoring_NoArousal_Fp1-Fp2_080520"
+filename              = "sleep_scoring_NoArousal_Fp1-Fp2_AddedFeatures"
+#filename              = "sleep_scoring_NoArousal_8channels"
 subjects_dic, hyp_dic = Object.load_dictionary(path, filename)
 
 #%% ================================Training part==============================
 
 # Training perentage
-train_size = .75
+train_size = .8
 n_train = round(train_size * len(subj_c))
 
 #######=== Randomly shuffle subjects to choose train and test splits ===#######
@@ -251,8 +241,8 @@ print('Training set was successfully created in : {} secs'.format(time.time()-ti
 #%% ================================Test part==============================%%#
 
 ########======== Picking the test subjetcs and concatenate them =======########
-tic = time.time()
-
+tic                = time.time()
+test_subjects_list = []
 for c_subj in subj_c[n_train:]:
     
     # test hypnogram
@@ -268,7 +258,13 @@ for c_subj in subj_c[n_train:]:
     # Concatenate features and labels
     X_test = np.row_stack((X_test, tmp_x))
     y_test = np.row_stack((y_test, tmp_y))
-    del tmp_x, tmp_y
+    
+    # keep the subject id
+    test_subjects_list.append(str_test_feat)
+    
+    # remove for next iteration
+    del tmp_x, tmp_y, str_test_feat, str_test_hyp
+    
 print('Test set was successfully created in : {} secs'.format(time.time()-tic))
 
 print(f'Raw train and test data were created.')
@@ -289,105 +285,84 @@ X_train, X_test = Object.Standardadize_features(X_train, X_test)
 
 ########========== select features only on first iteration ============########
 
-ranks, Feat_selected, selected_feats_ind = Object.FeatSelect_Boruta(X_train,
-                                                    y_train[:,0], max_depth = 7)
+td = 10 # Time dependence: number of epochs of memory
 
-########=================== Apply selected features ===================########
+X_train_td = Object.add_time_dependence_backward(X_train, n_time_dependence=td,
+                                                    padding_type = 'sequential')
 
-X_train = X_train[:, selected_feats_ind]
-X_test  = X_test[:, selected_feats_ind]
-
-########======= Add time dependence to the data classification ========########
-
-td = 6 # Time dependence: # epochs of memory
-X_train_td = Object.add_time_dependence_to_features(X_train, n_time_dependence=td)
-X_test_td  = Object.add_time_dependence_to_features(X_test,  n_time_dependence=td)
-
-########======== Temporary truncate first and last "td" epochs ========########
-
-X_train_td = X_train_td[td:len(X_train_td)-td,:]
-X_test_td  = X_test_td[td:len(X_test_td)-td,:]
-y_train_td    = y_train[td:len(y_train)-td,:]
-y_test_td     = y_test[td:len(y_test)-td,:]
+X_test_td  = Object.add_time_dependence_backward(X_test,  n_time_dependence=td,
+                                                    padding_type = 'sequential')
 
 ########====================== Feature Selection ======================########
 
-y_train_td = Object.binary_to_single_column_label(y_train_td)
+y_train_td = Object.binary_to_single_column_label(y_train)
+
+########========== select features only on first iteration ============########
+
+ranks, Feat_selected, selected_feats_ind = Object.FeatSelect_Boruta(X_train_td,
+                                                    y_train_td[:,0], max_iter = 50, max_depth = 7)
+
+#######===================== Save selected feats =======================#######
+
+path                  =  project_folder
+filename              = "Selected_Features_BoturaAfterTD=10_Fp1-Fp2_190520_BackwardTD"
+import pickle        
+with open(path+filename+'.pickle',"wb") as f:
+    pickle.dump(selected_feats_ind, f)
+
+########################### Load selected feats ###############################
+
+path                  =  project_folder
+filename              = "Selected_Features_BoturaAfterTD=6_Fp1-Fp2_160520"
+#filename              = "sleep_scoring_NoArousal_8channels_selected_feats_NEW"
+with open(path + filename + '.pickle', "rb") as f: 
+    selected_feats_ind = pickle.load(f)
+    
+########=================== Apply selected features ===================########
+
+X_train = X_train_td[:, selected_feats_ind]
+X_test  = X_test_td[:, selected_feats_ind]
 
 ########============== Define classifier of interest ==================########
 
-'''y_pred = Object.RandomForest_Modelling(X_train, y_train, X_test, y_test, n_estimators = 10)
-y_pred = Object.Extra_randomized_trees(X_train, y_train, X_test,y_test, n_estimators= 1000, max_depth = None, min_samples_split =2,
-                               max_features="sqrt")
-
-#y_pred = Object.ADAboost_Modelling(X_train, y_train,X_test, y_test, n_estimators = 1000)
-y_pred = Object.gradient_boosting_classifier(X_train, y_train,X_test, y_test, 
-                                     n_estimators = 500, learning_rate= 1.0, max_depth=1)
-'''
-
-
-y_pred = Object.XGB_Modelling(X_train, y_train,X_test, y_test, n_estimators = 250, 
-                      max_depth=3, learning_rate=.1)
+y_pred = Object.KernelSVM_Modelling(X_train, y_train,X_test, y_test, kernel='rbf')
 
 ########===== Metrics to assess the model performance on test data ====########
 
-Acc, Recall, prec, f1_sc,cm = Object.multi_label_confusion_matrix(y_test, y_pred)
+Acc, Recall, prec, f1_sc, kappa, mcm= Object.multi_label_confusion_matrix(y_test, y_pred)
 
-########====================== Plot hypnogram =========================########
+########================= Creating subjective outputs =================########
 
-
-Object.plot_confusion_matrix(y_test, y_pred, target_names = ['Wake','N1','N2','SWS','REM'],
-                          title='Confusion matrix of ssccoorriinngg algorithm',
-                          cmap='jet',
-                          normalize=True)
-
-########=============== Concatenate metrics to store ==================########
-
-all_metrics = [Acc, Recall, prec, f1_sc]
-
-########========================== Hypnogram ==========================########
-
-hyp_test = Object.binary_to_single_column_label(y_test)
-Object.plot_hyp(hyp = hyp_test, mark_REM = 'active')
+Object.create_subjecive_results(y_true=y_test, y_pred=y_pred, 
+                                test_subjects_list = test_subjects_list,
+                                subjects_data_dic = subjects_dic,
+                                fname_save = "results")
 
 ########================== Comparative hypnogram ======================########
 
+hyp_test = Object.binary_to_single_column_label(y_test)
 hyp_pred = Object.binary_to_single_column_label(y_pred)
 Object.plot_comparative_hyp(hyp_true = hyp_test, hyp_pred = hyp_pred, mark_REM = 'active')
 
+########==================== Plot subjectve hypnos ====================########
+
+Object.plot_subjective_hypno(y_true=y_test, y_pred=y_pred, 
+                             test_subjects_list=test_subjects_list,
+                             subjects_data_dic=subjects_dic,
+                             save_fig = False, 
+                             directory="C:/PhD/Github/ssccoorriinngg/")
+
+########================== Plot subjective conf-mat  ==================########
+
+Object.plot_confusion_mat_subjective(y_true=y_test, y_pred=y_pred, 
+                             test_subjects_list=test_subjects_list,
+                             subjects_data_dic=subjects_dic)
+
 ########========================== Save figure =======================#########
+"""
 Object.save_figure(saving_format = '.png',
                    directory = '/project/3013080.02/Mahdad/Github/ssccoorriinngg/Plots/v0.2/Fp1-Fp2/',
                    saving_name = 'test_subject_all' + str(c_subj), dpi = 900,
                    full_screen = False)
-"""
-#########======================= Randomized search ===================#########
-# Define sccoring metrics
-scoring = {'accuracy' : make_scorer(accuracy_score), 
-           'precision' : make_scorer(precision_score),
-           'recall' : make_scorer(recall_score), 
-           'f1_score' : make_scorer(f1_score)}   
-# Apply randomized search
-Object.RandomSearchRF(X = X_train, y = y_train, scoring = scoring, estimator = RandomForestClassifier(),
-                        n_estimators = [int(x) for x in np.arange(10, 1000, 50)],
-                        max_features = ['log2', 'sqrt'],
-                        max_depth = [int(x) for x in np.arange(10, 100, 30)],
-                        min_samples_split = [2, 5, 10],
-                        min_samples_leaf = [1, 2, 4],
-                        bootstrap = [True, False],
-                        n_iter = 100, cv = 10)
-#%% Save results
-path = '/project/3013080.02/Mahdad/Github/ssccoorriinngg/Plots/v0.1/Fp1-Fp2/'
-fname = 'LOOCV_results_Fp1-Fp2'
-with open(path+fname+'.pickle',"wb") as f:
-            pickle.dump(metrics_per_fold, f)    
-            
-#%% load results
 
-path     = 'P:/3013080.02/Mahdad/Github/ssccoorriinngg/Plots/v0.1/'
-filename = 'LOOCV_results'
-with open(path + filename + '.pickle', "rb") as f: 
-   Outputs = pickle.load(f)
-#%% Show final average results
-Object.Mean_leaveOneOut(Outputs)
 """
