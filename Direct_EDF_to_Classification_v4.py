@@ -150,8 +150,9 @@ for idx, c_subj in enumerate(subj_c):
 #####============= remove stages contaminated with arousal ===============#####      
     
     x_tmp, y_tmp = Object.remove_arousals(hypno_labels = y_tmp, input_feats = x_tmp)
+    
     # Create binary labels array
-    yy = Object.binary_labels_creator_categories(y_tmp)
+    yy = Object.One_hot_encoding(hyp = y_tmp, include_arousal = False, include_unknown = False)
 
     # Initialize feature array:
     Feat_all_channels = np.empty((np.shape(x_tmp)[-1],0))
@@ -191,7 +192,7 @@ print('Total feature extraction of subjects took {tic_tot - time.time()} secs.')
 #####====================== Save extracted features ======================#####      
 
 path     = project_folder +"/3013080.02/ml_project/scripts/1D_TimeSeries/features/"
-filename = 'sleep_scoring_NoArousal_Fp1-Fp2_full_'
+filename = 'sleep_scoring_NoArousal_Fp1-Fp2_full_NewOneHotEncoding'
 Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
 
 """
@@ -361,7 +362,7 @@ Object.plot_confusion_mat_subjective(y_true=y_test, y_pred=y_pred,
                              subjects_data_dic=subjects_dic)
 
 ########========================== Save figure =======================#########
-"""
+
 Object.save_figure(saving_format = '.png',
                    directory = '/project/3013080.02/Mahdad/Github/ssccoorriinngg/Plots/v0.2/Fp1-Fp2/',
                    saving_name = 'test_subject_all' + str(c_subj), dpi = 900,

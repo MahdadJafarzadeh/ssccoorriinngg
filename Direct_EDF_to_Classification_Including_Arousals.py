@@ -145,14 +145,15 @@ for idx, c_subj in enumerate(subj_c):
     x_tmp_init = data_epoched_selected
     y_tmp_init = hyp
     
-    # Remove "scores = -1"
-    x_tmp, y_tmp =  Object.remove_channels_without_scoring(hypno_labels = y_tmp_init,
-                                              input_feats = x_tmp_init)
-    
+    # Remove "scores = -1" --> Deactive
+    '''x_tmp, y_tmp =  Object.remove_channels_without_scoring(hypno_labels = y_tmp_init,
+                                              input_feats = x_tmp_init)'''
+    x_tmp = x_tmp_init
+    y_tmp = y_tmp_init
 #####============= Create a one hot encoding form of labels ==============##### 
 
     # Create binary labels array
-    yy = Object.One_hot_encoding(y_tmp)     
+    yy = Object.One_hot_encoding(y_tmp,  include_arousal = True, include_unknown=True)     
     
     # Ensure all the input labels have a class
     Object.Unlabaled_rows_detector(yy)
@@ -188,7 +189,7 @@ print('Total feature extraction of subjects took {tic_tot - time.time()} secs.')
 #####====================== Save extracted features ======================#####      
 
 path     = project_folder +"features/"
-filename = 'sleep_scoring_WithArousal_Fp1-Fp2_200520_OnlyRemoving-1'
+filename = 'sleep_scoring_WithArousal_Fp1-Fp2_200520_CombinedMov&Unknown'
 Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
 
 """

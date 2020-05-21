@@ -713,18 +713,20 @@ class ssccoorriinngg():
                 cdf = nolds.corr_dim(data,1)
             except np.linalg.LinAlgError:
                 cdf = np.NaN
-            """    
-            ''' Detrended Fluctuation Analysis ''' 
-            try:
-                DFA = pyeeg.dfa(data)
-            except np.linalg.LinAlgError:
-                DFA = np.NaN
+              
+            """ 
             
             ''' Hurst component '''
             try:
                 Hurst = pyeeg.hurst(data)
             except np.linalg.LinAlgError:
                 Hurst = np.NaN
+                
+            ''' Detrended Fluctuation Analysis ''' 
+            try:
+                DFA = pyeeg.dfa(data)
+            except np.linalg.LinAlgError:
+                DFA = np.NaN
             
             '''Compute Petrosian Fractal Dimension '''
             try: 
@@ -1433,12 +1435,15 @@ class ssccoorriinngg():
         labels = labels[:,0:5]
         
         return labels
-    #%% One-Hot Encoding
-    def One_hot_encoding(self, hyp):
+    #%% One-Hot Encoding WITH AROUSALS
+    def One_hot_encoding(self, hyp, include_arousal = False, include_unknown = False):
         ''' column 0: wake - column 1: N1 - column 2: N2 - column 3: SWS - column 4: REM
             column 5: Movement
         '''
-        Out = np.zeros((len(hyp), 6))
+        if include_arousal == True:
+            Out = np.zeros((len(hyp), 6))
+        else: 
+            Out = np.zeros((len(hyp), 5))
         
         # Find index of classes without arousal
         Wake_idx = [i for i,j in enumerate(hyp[:,0]) if ((j == 0) and (hyp[i,1]==0))]
@@ -1446,9 +1451,10 @@ class ssccoorriinngg():
         N2_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 2) and (hyp[i,1]==0))]
         N3_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 3) and (hyp[i,1]==0))]
         REM_idx  = [i for i,j in enumerate(hyp[:,0]) if ((j == 5) and (hyp[i,1]==0))]
-        
+
         # Find arousals
-        Mov_idx  = [i for i,j in enumerate(hyp[:,0]) if ((j == 8) or (hyp[i,1]==1))]
+        if include_arousal == True:
+            Mov_idx  = [i for i,j in enumerate(hyp[:,0]) if ((j == 8) or (hyp[i,1]==1))]
         
         # Replacing values of each class in corresponding column
         Out[Wake_idx, 0] = 1
@@ -1456,9 +1462,18 @@ class ssccoorriinngg():
         Out[N2_idx,   2] = 1
         Out[N3_idx,   3] = 1
         Out[REM_idx,  4] = 1
-        Out[Mov_idx,  5] = 1
+        
+        # Check arousal inclusion flag
+        if include_arousal == True:
+            Out[Mov_idx,  5] = 1
+        
+        # Check Unknown inclusion flag
+        if include_unknown == True:
+            Unknown_idx = [i for i,j in enumerate(hyp[:,0]) if (j == -1)]
+            Out[Unknown_idx,  5] = 1
         
         return Out
+    
 
     #%% Make sure all the label rows have a value:
     def Unlabaled_rows_detector(self, labels):
