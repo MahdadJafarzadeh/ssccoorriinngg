@@ -1019,7 +1019,7 @@ class ssccoorriinngg():
         return results_LR
     #%% XGBoost
     def XGB_Modelling(self, X_train, y_train,X_test, y_test, n_estimators = 1000, 
-                      max_depth=3, learning_rate=.1, plot_confusion = True):
+                      max_depth=3, learning_rate=.1):
         tic = time.time()
         from xgboost import XGBClassifier
         classifier_xgb = XGBClassifier(n_estimators = n_estimators, max_depth = max_depth,
@@ -1345,7 +1345,14 @@ class ssccoorriinngg():
         out_labels = np.delete(hypno_labels, bad, axis=0)
         
         return out_feats, out_labels
+    #%% Remove disconnections:
+    def remove_disconnection(self, hypno_labels, input_feats):
         
+        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if (j==8)]
+        out_feats  = np.delete(input_feats, bad, axis=2)
+        out_labels = np.delete(hypno_labels, bad, axis=0)
+        
+        return out_feats, out_labels
     #%% Detect and remove arousal and wake: useful for classifying only sleep stages
     def remove_arousals(self, hypno_labels, input_feats):
         bad        = [i for i,j in enumerate(hypno_labels[:,0]) if ((hypno_labels[i,1]==1) or (hypno_labels[i,1]==2))]
@@ -1436,25 +1443,35 @@ class ssccoorriinngg():
         
         return labels
     #%% One-Hot Encoding WITH AROUSALS
-    def One_hot_encoding(self, hyp, include_arousal = False, include_unknown = False):
+    def One_hot_encoding(self, hyp):
         ''' column 0: wake - column 1: N1 - column 2: N2 - column 3: SWS - column 4: REM
             column 5: Movement
         '''
-        if include_arousal == True:
-            Out = np.zeros((len(hyp), 6))
-        else: 
-            Out = np.zeros((len(hyp), 5))
+       
+        Out = np.zeros((len(hyp), 6))
         
-        # Find index of classes without arousal
-        Wake_idx = [i for i,j in enumerate(hyp[:,0]) if ((j == 0) and (hyp[i,1]==0))]
-        N1_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 1) and (hyp[i,1]==0))]
-        N2_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 2) and (hyp[i,1]==0))]
-        N3_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 3) and (hyp[i,1]==0))]
-        REM_idx  = [i for i,j in enumerate(hyp[:,0]) if ((j == 5) and (hyp[i,1]==0))]
-
-        # Find arousals
+        # Find index of classes and exclude the ones contaminated with artefact
+        '''if Include_artefact_stages == False:
+            
+            Wake_idx = [i for i,j in enumerate(hyp[:,0]) if ((j == 0) and (hyp[i,1]==0))]
+            N1_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 1) and (hyp[i,1]==0))]
+            N2_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 2) and (hyp[i,1]==0))]
+            N3_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 3) and (hyp[i,1]==0))]
+            REM_idx  = [i for i,j in enumerate(hyp[:,0]) if ((j == 5) and (hyp[i,1]==0))]
+            
+        # Find index of classes and also include the ones contaminated with artefact   
+        elif Include_artefact_stages == True: 
+            '''
+        Wake_idx = [i for i,j in enumerate(hyp[:,0]) if (j == 0) ]
+        N1_idx   = [i for i,j in enumerate(hyp[:,0]) if (j == 1) ]
+        N2_idx   = [i for i,j in enumerate(hyp[:,0]) if (j == 2) ]
+        N3_idx   = [i for i,j in enumerate(hyp[:,0]) if (j == 3) ]
+        REM_idx  = [i for i,j in enumerate(hyp[:,0]) if (j == 5) ]
+        Mov_idx  = [i for i,j in enumerate(hyp[:,0]) if (j == 8) ]
+        # Find arousals '''
+        '''
         if include_arousal == True:
-            Mov_idx  = [i for i,j in enumerate(hyp[:,0]) if ((j == 8) or (hyp[i,1]==1))]
+            Mov_idx  = [i for i,j in enumerate(hyp[:,0]) if ((j == 8) or (hyp[i,1]==1))] '''
         
         # Replacing values of each class in corresponding column
         Out[Wake_idx, 0] = 1
@@ -1462,7 +1479,8 @@ class ssccoorriinngg():
         Out[N2_idx,   2] = 1
         Out[N3_idx,   3] = 1
         Out[REM_idx,  4] = 1
-        
+        Out[Mov_idx,  5] = 1
+        ''' 
         # Check arousal inclusion flag
         if include_arousal == True:
             Out[Mov_idx,  5] = 1
@@ -1470,13 +1488,14 @@ class ssccoorriinngg():
         # Check Unknown inclusion flag
         if include_unknown == True:
             Unknown_idx = [i for i,j in enumerate(hyp[:,0]) if (j == -1)]
-            Out[Unknown_idx,  5] = 1
+            Out[Unknown_idx,  5] = 1 '''
         
         return Out
     
 
     #%% Make sure all the label rows have a value:
     def Unlabaled_rows_detector(self, labels):
+        
         Unlabeled = 0
         for i,j in enumerate(labels[:,0]):
             if sum (labels[i,:]) == 1:
@@ -2042,4 +2061,45 @@ class ssccoorriinngg():
             
             # Update the counter
             counter = counter + current_size
-                
+            
+    #%% Find number of samples per class
+    def find_number_of_samples_per_class(self, labels, including_artefact = False):
+        
+        # Convert output structure to Onehotencioded version:
+        
+        wake = [w for w,j in enumerate(labels[:,0]) if labels[w,0]==1]
+        n1   = [w for w,j in enumerate(labels[:,1]) if labels[w,1]==1]
+        n2   = [w for w,j in enumerate(labels[:,2]) if labels[w,2]==1]
+        n3   = [w for w,j in enumerate(labels[:,3]) if labels[w,3]==1]
+        rem  = [w for w,j in enumerate(labels[:,4]) if labels[w,4]==1]
+            
+        # Calculate the number per class
+        n_w   = len(wake)
+        n_n1  = len(n1)
+        n_n2  = len(n2)
+        n_n3  = len(n3)
+        n_rem = len(rem)
+        if including_artefact == True:            
+            artefact  = [w for w,j in enumerate(labels[:,5]) if labels[w,5]==1]
+            n_MA  = len(artefact)
+            print(f'Nmber of epochs per class:\nWake:{n_w}, N1:{n_n1}, N2:{n_n2}, SWS:{n_n3}, REM:{n_rem}, Movement Artefact:{n_MA} ')
+        else:
+            print(f'Nmber of epochs per class:\nWake:{n_w}, N1:{n_n1}, N2:{n_n2}, SWS:{n_n3}, REM:{n_rem}')
+
+
+        
+    #%% ensure train data and labels have the same length
+    def Ensure_data_label_length(self, X, y):
+        len_x, len_y = np.shape(X)[2], np.shape(y)[0]
+        if len_x == len_y:
+            print("Length of data and hypnogram are identical! Perfect!")
+        else:
+            raise ValueError("Lengths of data epochs and hypnogram labels are different!!!")
+    #%% ensure train data and labels have the same length
+    def Ensure_feature_label_length(self, X, y):
+        len_x, len_y = np.shape(X)[0], np.shape(y)[0]
+        if len_x == len_y:
+            print("Length of data and hypnogram are identical! Perfect!")
+        else:
+            raise ValueError("Lengths of data epochs and hypnogram labels are different!!!")   
+                        

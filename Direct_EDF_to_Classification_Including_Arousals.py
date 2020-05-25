@@ -30,7 +30,7 @@ from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, preci
 
 #####===================== Defining project folder========================#####
 
-project_folder = "/project/3013080.02/ml_project/"
+project_folder = "F:/Loreta_data/"
 #project_folder = "P:"
 
 #####===================== Reading EDF data files=========================#####
@@ -59,21 +59,23 @@ metrics_per_fold = {}
 #####============= create an object of ssccoorriinngg class ==============#####
 
 Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
-
+"""
 tic_tot = time.time()
 
 # Igonre unnecessary warnings
 np.seterr(divide='ignore', invalid='ignore')
 
 #####============= Iterate through each subject to find data =============#####
-
 for idx, c_subj in enumerate(subj_c):
+
+        
     print (f'Analyzing Subject Number: {c_subj}')
     ## Read in data
     file     = project_folder + "data/LK_" + str(int(c_subj)) + "_1.EDF"
     tic      = time.time()
     data     = mne.io.read_raw_edf(file)
-
+    # Data raw EEG --> Deactive
+    # data.plot(duration = 30, highpass = .3 , lowpass = 25 )
     raw_data = data.get_data()
     print('Time to read EDF: {}'.format(time.time()-tic))
     
@@ -88,6 +90,7 @@ for idx, c_subj in enumerate(subj_c):
     # 1. The channels that need to be referenced
     Mastoids          = ['Fp2'] # Reference electrodes
     RequiredChannels  = ['Fp1'] # main electrodes
+    
     # 2. Channels that don't need to be referenced: --> Deactive
    
     Idx               = []
@@ -126,8 +129,10 @@ for idx, c_subj in enumerate(subj_c):
     tic      = time.time()
     
 #####================= Concatenation of selected channels ================#####   
+
     # Calculate referenced channels: 
     data_epoched_selected = data_epoched[Idx] - data_epoched[Idx_Mastoids]
+    
     # show picked channels for analysis
     picked_channels = []
     for jj,kk in enumerate(Idx):
@@ -145,15 +150,21 @@ for idx, c_subj in enumerate(subj_c):
     x_tmp_init = data_epoched_selected
     y_tmp_init = hyp
     
-    # Remove "scores = -1" --> Deactive
-    '''x_tmp, y_tmp =  Object.remove_channels_without_scoring(hypno_labels = y_tmp_init,
-                                              input_feats = x_tmp_init)'''
-    x_tmp = x_tmp_init
-    y_tmp = y_tmp_init
+    # Ensure equalituy of length for arrays:
+    Object.Ensure_data_label_length(x_tmp_init, y_tmp_init)
+    
+    # Remove non-scored epochs
+    x_tmp, y_tmp =  Object.remove_channels_without_scoring(hypno_labels = y_tmp_init,
+                                              input_feats = x_tmp_init)
+    
+    # Remove disconnections
+    '''x_tmp, y_tmp =  Object.remove_disconnection(hypno_labels= y_tmp, 
+                                                input_feats=x_tmp) '''
+    
 #####============= Create a one hot encoding form of labels ==============##### 
 
     # Create binary labels array
-    yy = Object.One_hot_encoding(y_tmp,  include_arousal = True, include_unknown=True)     
+    yy = Object.One_hot_encoding(y_tmp)     
     
     # Ensure all the input labels have a class
     Object.Unlabaled_rows_detector(yy)
@@ -170,6 +181,9 @@ for idx, c_subj in enumerate(subj_c):
         
     toc = time.time()
     print(f'Features of subject {c_subj} were successfully extracted in: {toc-tic} secs')
+    
+    # Double check the equality of size of arrays
+    Object.Ensure_feature_label_length(Feat_all_channels, yy)
     
     # Defining dictionary to save features PER SUBJECT
     subjects_dic["subject{}".format(c_subj)] = Feat_all_channels
@@ -189,15 +203,15 @@ print('Total feature extraction of subjects took {tic_tot - time.time()} secs.')
 #####====================== Save extracted features ======================#####      
 
 path     = project_folder +"features/"
-filename = 'sleep_scoring_WithArousal_Fp1-Fp2_200520_CombinedMov&Unknown'
+filename = 'sleep_scoring_Fp1-Fp2_220520_IncludeContaminatedStagesWithArtefact_IncludeDisconnection_RemoveOnly-1_ExcludingSubject35'
 Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
 
 """
 
 #%% Load featureset and labels
 
-path                  =  project_folder
-filename              = "sleep_scoring_NoArousal_Fp1-Fp2_AddedFeatures"
+path                  =  project_folder + "features/"
+filename              =  "sleep_scoring_NoArousal_8channels"
 #filename              = "sleep_scoring_NoArousal_8channels"
 subjects_dic, hyp_dic = Object.load_dictionary(path, filename)
 
@@ -237,6 +251,7 @@ for c_subj in subj_c[0:n_train]:
     X_train = np.row_stack((X_train, tmp_x))
     y_train = np.row_stack((y_train, tmp_y))
     del tmp_x, tmp_y
+    
 print('Training set was successfully created in : {} secs'.format(time.time()-tic))
 
 #%% ================================Test part==============================%%#
@@ -245,7 +260,7 @@ print('Training set was successfully created in : {} secs'.format(time.time()-ti
 tic                = time.time()
 test_subjects_list = []
 for c_subj in subj_c[n_train:]:
-    
+   
     # test hypnogram
     str_test_hyp  = 'hyp' + str(c_subj)
     
@@ -286,7 +301,7 @@ X_train, X_test = Object.Standardadize_features(X_train, X_test)
 
 ########========== select features only on first iteration ============########
 
-td = 10 # Time dependence: number of epochs of memory
+td = 6 # Time dependence: number of epochs of memory
 
 X_train_td = Object.add_time_dependence_backward(X_train, n_time_dependence=td,
                                                     padding_type = 'sequential')
@@ -299,22 +314,22 @@ X_test_td  = Object.add_time_dependence_backward(X_test,  n_time_dependence=td,
 y_train_td = Object.binary_to_single_column_label(y_train)
 
 ########========== select features only on first iteration ============########
-
+"""
 ranks, Feat_selected, selected_feats_ind = Object.FeatSelect_Boruta(X_train_td,
                                                     y_train_td[:,0], max_iter = 50, max_depth = 7)
 
 #######===================== Save selected feats =======================#######
 
-path                  =  project_folder
-filename              = "Selected_Features_BoturaAfterTD=10_Fp1-Fp2_190520_BackwardTD"
+path                  =  project_folder + "features/"
+filename              = "Selected_Features_BoturaAfterTD=6_EightChannels_230520_Backward"
 import pickle        
 with open(path+filename+'.pickle',"wb") as f:
     pickle.dump(selected_feats_ind, f)
-
+"""
 ########################### Load selected feats ###############################
 
-path                  =  project_folder
-filename              = "Selected_Features_BoturaAfterTD=6_Fp1-Fp2_160520"
+path                  =  project_folder  + "features/"
+filename              = "sleep_scoring_NoArousal_8channels_selected_feats_NEW"
 #filename              = "sleep_scoring_NoArousal_8channels_selected_feats_NEW"
 with open(path + filename + '.pickle', "rb") as f: 
     selected_feats_ind = pickle.load(f)
@@ -327,6 +342,8 @@ X_test  = X_test_td[:, selected_feats_ind]
 ########============== Define classifier of interest ==================########
 
 y_pred = Object.KernelSVM_Modelling(X_train, y_train,X_test, y_test, kernel='rbf')
+y_pred = Object.XGB_Modelling(X_train, y_train,X_test, y_test, n_estimators = 300, 
+                      max_depth=3, learning_rate=.1)
 
 ########===== Metrics to assess the model performance on test data ====########
 
@@ -339,6 +356,10 @@ Object.create_subjecive_results(y_true=y_test, y_pred=y_pred,
                                 subjects_data_dic = subjects_dic,
                                 fname_save = "results")
 
+########============= find number of epochs per stage =================########
+
+Object.find_number_of_samples_per_class(y_test, including_artefact = False)
+
 ########================== Comparative hypnogram ======================########
 
 hyp_test = Object.binary_to_single_column_label(y_test)
@@ -350,7 +371,7 @@ Object.plot_comparative_hyp(hyp_true = hyp_test, hyp_pred = hyp_pred, mark_REM =
 Object.plot_subjective_hypno(y_true=y_test, y_pred=y_pred, 
                              test_subjects_list=test_subjects_list,
                              subjects_data_dic=subjects_dic,
-                             save_fig = False, 
+                             save_fig = True, 
                              directory="C:/PhD/Github/ssccoorriinngg/")
 
 ########================== Plot subjective conf-mat  ==================########
@@ -365,4 +386,3 @@ Object.save_figure(saving_format = '.png',
                    saving_name = 'test_subject_all' + str(c_subj), dpi = 900,
                    full_screen = False)
 
-"""
