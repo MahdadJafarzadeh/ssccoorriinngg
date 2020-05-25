@@ -1,0 +1,77 @@
+
+Ssccoorriinngg: Automatic sleep scoring package
+Link to package: https://github.com/MahdadJafarzadeh/ssccoorriinngg 
+This results file was created on : 25/05/2020 ----- 00:16:17 
+
+==================================================================
+Results for subject61 : 
+==================================================================
+Accuracy for Wake, N1, N2, N3, and REM were respectively: [0.99772985 0.91032917 0.88422247 0.95119183 0.92735528] 
+Recall for Wake, N1, N2, N3, and REM were respectively: [0.94444444 0.25       0.96455696 0.80748663 0.83240223] 
+Precision for Wake, N1, N2, N3, and REM were respectively: [1.         0.56756757 0.81236674 0.9556962  0.81420765] 
+F1-score for Wake, N1, N2, N3, and REM were respectively: [0.97142857 0.34710744 0.88194444 0.87536232 0.82320442] 
+Cohen kappa was calculated as: 0.7563378481739406 
+==================================================================
+Results for subject96 : 
+==================================================================
+Accuracy for Wake, N1, N2, N3, and REM were respectively: [0.99889503 0.94696133 0.93922652 0.97679558 0.96574586] 
+Recall for Wake, N1, N2, N3, and REM were respectively: [1.         0.16666667 0.956      0.98675497 0.953125  ] 
+Precision for Wake, N1, N2, N3, and REM were respectively: [0.88888889 0.75       0.93542074 0.88690476 0.89268293] 
+F1-score for Wake, N1, N2, N3, and REM were respectively: [0.94117647 0.27272727 0.94559842 0.93416928 0.92191436] 
+Cohen kappa was calculated as: 0.8582749253629459 
+==================================================================
+Results for subject72 : 
+==================================================================
+Accuracy for Wake, N1, N2, N3, and REM were respectively: [0.95604396 0.84945055 0.90989011 0.97472527 0.93626374] 
+Recall for Wake, N1, N2, N3, and REM were respectively: [0.87755102 0.73648649 0.92244898 0.78899083 0.10769231] 
+Precision for Wake, N1, N2, N3, and REM were respectively: [0.75438596 0.52657005 0.91129032 1.         1.        ] 
+F1-score for Wake, N1, N2, N3, and REM were respectively: [0.81132075 0.61408451 0.9168357  0.88205128 0.19444444] 
+Cohen kappa was calculated as: 0.7099862585602796 
+==================================================================
+Results for subject87 : 
+==================================================================
+Accuracy for Wake, N1, N2, N3, and REM were respectively: [0.97849462 0.92580645 0.9172043  0.9688172  0.96451613] 
+Recall for Wake, N1, N2, N3, and REM were respectively: [0.90909091 0.49494949 0.90191388 0.93167702 0.97142857] 
+Precision for Wake, N1, N2, N3, and REM were respectively: [0.84337349 0.72058824 0.91283293 0.89285714 0.85858586] 
+F1-score for Wake, N1, N2, N3, and REM were respectively: [0.875      0.58682635 0.90734055 0.9118541  0.91152815] 
+Cohen kappa was calculated as: 0.8282923985132279 
+==================================================================
+Results for subject48 : 
+==================================================================
+Accuracy for Wake, N1, N2, N3, and REM were respectively: [0.99667774 0.91362126 0.88593577 0.94352159 0.9324474 ] 
+Recall for Wake, N1, N2, N3, and REM were respectively: [0.92682927 0.2        0.92173913 0.83962264 0.84166667] 
+Precision for Wake, N1, N2, N3, and REM were respectively: [1.         0.38888889 0.86354379 0.91282051 0.70629371] 
+F1-score for Wake, N1, N2, N3, and REM were respectively: [0.96202532 0.26415094 0.89169295 0.87469287 0.76806084] 
+Cohen kappa was calculated as: 0.7463921164542262 
+==================================================================
+Results for subject67 : 
+==================================================================
+Accuracy for Wake, N1, N2, N3, and REM were respectively: [0.9538639  0.79815456 0.83737024 0.95155709 0.91926182] 
+Recall for Wake, N1, N2, N3, and REM were respectively: [0.8        0.43347639 0.88807786 0.67073171 0.7804878 ] 
+Precision for Wake, N1, N2, N3, and REM were respectively: [0.8        0.70138889 0.79347826 0.78571429 0.34408602] 
+F1-score for Wake, N1, N2, N3, and REM were respectively: [0.8        0.53580902 0.83811711 0.72368421 0.47761194] 
+Cohen kappa was calculated as: 0.6018283731482718 
+==================================================================
+Results for subject111 : 
+==================================================================
+Accuracy for Wake, N1, N2, N3, and REM were respectively: [0.93978495 0.87204301 0.93655914 0.97096774 0.8655914 ] 
+Recall for Wake, N1, N2, N3, and REM were respectively: [1.         0.51111111 0.9379015  0.91907514 0.43315508] 
+Precision for Wake, N1, N2, N3, and REM were respectively: [0.1884058  0.38016529 0.93589744 0.9244186  0.81      ] 
+F1-score for Wake, N1, N2, N3, and REM were respectively: [0.31707317 0.43601896 0.9368984  0.92173913 0.56445993] 
+Cohen kappa was calculated as: 0.6937558543663976 
+==================================================================
+Results for subject132 : 
+==================================================================
+Accuracy for Wake, N1, N2, N3, and REM were respectively: [0.98371336 0.94571118 0.90553746 0.94788274 0.96091205] 
+Recall for Wake, N1, N2, N3, and REM were respectively: [0.92307692 0.46031746 0.87973274 0.97701149 0.86259542] 
+Precision for Wake, N1, N2, N3, and REM were respectively: [0.93203883 0.64444444 0.9228972  0.79439252 0.86259542] 
+F1-score for Wake, N1, N2, N3, and REM were respectively: [0.92753623 0.53703704 0.90079818 0.87628866 0.86259542] 
+Cohen kappa was calculated as: 0.8152127523910733 
+==================================================================
+Overal results:
+==================================================================
+Accuracy for Wake, N1, N2, N3, and REM were respectively: [0.9755761  0.89581896 0.90258038 0.96081137 0.93404167] 
+Recall for Wake, N1, N2, N3, and REM were respectively: [0.89098532 0.44946492 0.92200557 0.87910328 0.76697248] 
+Precision for Wake, N1, N2, N3, and REM were respectively: [0.77272727 0.5641791  0.8859743  0.89195776 0.78867925] 
+F1-score for Wake, N1, N2, N3, and REM were respectively: [0.82765336 0.50033091 0.9036309  0.88548387 0.77767442] 
+Cohen kappa was calculated as: 0.7556369374758873 
