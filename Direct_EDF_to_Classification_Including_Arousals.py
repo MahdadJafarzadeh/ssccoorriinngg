@@ -26,20 +26,20 @@ import matplotlib.pyplot as plt
 import pickle
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import RandomizedSearchCV
-from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, precision_score, recall_score, f1_score, classification_report, plot_confusion_matrix
+from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, precision_score, recall_score, f1_score, classification_report
 
 #####===================== Defining project folder========================#####
 
 project_folder = "F:/Loreta_data/"
-#project_folder = "P:"
+project_folder = "P:/"
 
 #####===================== Reading EDF data files=========================#####
 
-pat_labels = loadtxt(project_folder + "patient_labels.txt", delimiter="\t", skiprows = 1)
+pat_labels = loadtxt(project_folder+"3013080.02/ml_project/patient_labels.txt", delimiter="\t", skiprows = 1)
 
 #####============= Distinguishing patients from control group=============#####
 
-gp = loadtxt(project_folder + "grouping.txt", delimiter="\t", skiprows = 1, dtype = 'str')
+gp = loadtxt(project_folder+"3013080.02/ml_project/grouping.txt", delimiter="\t", skiprows = 1, dtype = 'str')
 subj_c = [] # Control
 subj_p = [] # Patients
 
@@ -60,182 +60,184 @@ raw_data_dic     = {}
 
 Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
 
-tic_tot = time.time()
-
-# Igonre unnecessary warnings
-np.seterr(divide='ignore', invalid='ignore')
-
-#####============= Iterate through each subject to find data =============#####
-
-for idx, c_subj in enumerate(subj_c):
-
-        
-    print (f'Analyzing Subject Number: {c_subj}')
-    ## Read in data
-    file     = project_folder + "data/LK_" + str(int(c_subj)) + "_1.EDF"
-    tic      = time.time()
-    data     = mne.io.read_raw_edf(file)
-    # Data raw EEG --> Deactive
-    # data.plot(duration = 30, highpass = .3 , lowpass = 25 )
-    raw_data = data.get_data()
-    print('Time to read EDF: {}'.format(time.time()-tic))
-    
-#####=================Retrieving information from data====================#####
-    
-    DataInfo          = data.info
-    AvailableChannels = DataInfo['ch_names']
-    fs                = int(DataInfo['sfreq'])
-    
-#####==================Choosing channels of interest======================#####
-    
-    # 1. The channels that need to be referenced
-    Mastoids          = ['Fp2'] # Reference electrodes
-    RequiredChannels  = ['Fp1'] # main electrodes
-    
-    # 2. Channels that don't need to be referenced: --> Deactive
-   
-    Idx               = []
-    Idx_Mastoids      = []
-    
-#####================= Find index of required channels ===================#####
-    
-    for indx, c in enumerate(AvailableChannels):
-        if c in RequiredChannels:
-            Idx.append(indx)
-        elif c in Mastoids:
-            Idx_Mastoids.append(indx)
-
-#####===== Sampling rate is 200hz; thus 1 epoch(30s) is 6000 samples =====#####
-            
-    T = 30 #secs
-    len_epoch   = fs * T
-    start_epoch = 0
-    n_channels  =  len(AvailableChannels)
-       
-#####============ Cut tail; use modulo to find full epochs ===============#####
-
-    raw_data = raw_data[:, 0:raw_data.shape[1] - raw_data.shape[1]%len_epoch]
-    
-#####========== Reshape data [n_channel, len_epoch, n_epochs] ============#####
-    data_epoched = np.reshape(raw_data,
-                              (n_channels, len_epoch,
-                               int(raw_data.shape[1]/len_epoch)), order='F' )
-    
-#####===================== Reading hypnogram data ========================#####
-
-    hyp = loadtxt(project_folder +"hypnograms/LK_" + 
-                str(int(c_subj)) + ".txt", delimiter="\t")
-    
-    ### Create sepereate data subfiles based on hypnogram (N1, N2, N3, NREM, REM) 
-    tic      = time.time()
-    
-#####================= Concatenation of selected channels ================#####   
-
-    # Calculate referenced channels: 
-    data_epoched_selected = data_epoched[Idx] - data_epoched[Idx_Mastoids]
-    
-#####================= Find order of the selected channels ===============#####  
- 
-    #Init
-    picked_channels = []
-    picked_refs     = []
-    List_Channels   = []
-    
-    # Find main channels
-    for jj,kk in enumerate(Idx):
-        picked_channels = np.append(picked_channels, AvailableChannels[kk])
-        
-    # Find references
-    for jj,kk in enumerate(Idx_Mastoids):
-        picked_refs     = np.append(picked_refs, AvailableChannels[kk])
-    print(f'subject LK {c_subj} --> detected channels: {str(picked_channels)} -  {str(picked_refs)}')
-    
-    # Create lis of channels
-    for kk in np.arange(0, len(Idx)):
-        List_Channels = np.append(List_Channels, picked_channels[kk] + '-' + picked_refs[kk])
-    
-    #%% Analysis section
-#####================= remove chanbnels without scroing ==================#####   
-    
-    # assign the proper data and labels
-    x_tmp_init = data_epoched_selected
-    y_tmp_init = hyp
-    
-    # Ensure equalituy of length for arrays:
-    Object.Ensure_data_label_length(x_tmp_init, y_tmp_init)
-    
-    # Remove non-scored epochs
-    x_tmp, y_tmp =  Object.remove_channels_without_scoring(hypno_labels = y_tmp_init,
-                                              input_feats = x_tmp_init)
-    
-    # Remove disconnections
-    x_tmp, y_tmp =  Object.remove_disconnection(hypno_labels= y_tmp, 
-                                                input_feats=x_tmp) 
-    
-#####============= Create a one hot encoding form of labels ==============##### 
-
-    # Create binary labels array
-    yy = Object.One_hot_encoding(y_tmp)     
-    
-    # Ensure all the input labels have a class
-    Object.Unlabaled_rows_detector(yy)
-    
-    # Initialize feature array:
-    Feat_all_channels = np.empty((np.shape(x_tmp)[-1],0))
-      
-#####================== Extract the relevant features ====================#####    
-    print(f'Extracting features of subject {c_subj} ....')
-    
-    for k in np.arange(np.shape(data_epoched_selected)[0]):
-        
-        feat_temp         = Object.FeatureExtraction_per_subject(Input_data = x_tmp[k,:,:])
-        Feat_all_channels = np.column_stack((Feat_all_channels,feat_temp))
-        
-    toc = time.time()
-    print(f'Features of subject {c_subj} were successfully extracted in: {toc-tic} secs')
-    
-    # Double check the equality of size of arrays
-    Object.Ensure_feature_label_length(Feat_all_channels, yy)
-    
-    # Defining dictionary to save features PER SUBJECT
-    subjects_dic["subject{}".format(c_subj)] = Feat_all_channels
-    
-    # Defining dictionary to save hypnogram PER SUBJECT
-    hyp_dic["hyp{}".format(c_subj)] = yy
-    
-    # Defining dictionary to save EEG raw data PER SUBJECT
-    raw_data_dic["subject{}".format(c_subj)] = x_tmp
-    
-    
-#####=============== Removing variables for next iteration ===============#####      
-    del x_tmp, y_tmp, feat_temp, yy
-    toc = time.time()
-    
-    print('Feature extraction of subject {c_subj} has been finished.')   
-
-print('Total feature extraction of subjects took {tic_tot - time.time()} secs.')
-#%% Save created features and labels
-
-#####====================== Save extracted features ======================#####      
-
-path     = project_folder +"features/"
-
-filename = 'sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored'
-Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
-
-#####====================== Save raw data as pickle ======================#####      
-
-path     = project_folder + "features/"
-
-filename = 'sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored_RawData'
-Object.save_dictionary(path, filename, hyp_dic, raw_data_dic)
-
-"""
+# =============================================================================
+# tic_tot = time.time()
+# 
+# # Igonre unnecessary warnings
+# np.seterr(divide='ignore', invalid='ignore')
+# 
+# #####============= Iterate through each subject to find data =============#####
+# 
+# for idx, c_subj in enumerate(subj_c):
+# 
+#         
+#     print (f'Analyzing Subject Number: {c_subj}')
+#     ## Read in data
+#     file     = project_folder+"3013080.02/ml_project/data/LK_" + str(int(c_subj)) + "_1.EDF"
+#     tic      = time.time()
+#     data     = mne.io.read_raw_edf(file)
+#     # Data raw EEG --> Deactive
+#     # data.plot(duration = 30, highpass = .3 , lowpass = 25 )
+#     raw_data = data.get_data()
+#     print('Time to read EDF: {}'.format(time.time()-tic))
+#     
+# #####=================Retrieving information from data====================#####
+#     
+#     DataInfo          = data.info
+#     AvailableChannels = DataInfo['ch_names']
+#     fs                = int(DataInfo['sfreq'])
+#     
+# #####==================Choosing channels of interest======================#####
+#     
+#     # 1. The channels that need to be referenced
+#     Mastoids          = ['Fp2'] # Reference electrodes
+#     RequiredChannels  = ['Fp1'] # main electrodes
+#     
+#     # 2. Channels that don't need to be referenced: --> Deactive
+#    
+#     Idx               = []
+#     Idx_Mastoids      = []
+#     
+# #####================= Find index of required channels ===================#####
+#     
+#     for indx, c in enumerate(AvailableChannels):
+#         if c in RequiredChannels:
+#             Idx.append(indx)
+#         elif c in Mastoids:
+#             Idx_Mastoids.append(indx)
+# 
+# #####===== Sampling rate is 200hz; thus 1 epoch(30s) is 6000 samples =====#####
+#             
+#     T = 30 #secs
+#     len_epoch   = fs * T
+#     start_epoch = 0
+#     n_channels  =  len(AvailableChannels)
+#        
+# #####============ Cut tail; use modulo to find full epochs ===============#####
+# 
+#     raw_data = raw_data[:, 0:raw_data.shape[1] - raw_data.shape[1]%len_epoch]
+#     
+# #####========== Reshape data [n_channel, len_epoch, n_epochs] ============#####
+#     data_epoched = np.reshape(raw_data,
+#                               (n_channels, len_epoch,
+#                                int(raw_data.shape[1]/len_epoch)), order='F' )
+#     
+# #####===================== Reading hypnogram data ========================#####
+# 
+#     hyp = loadtxt(project_folder + "3013065.04/Depressed_Loreta/hypnograms/LK_" + 
+#                 str(int(c_subj)) + ".txt", delimiter="\t")
+#     
+#     ### Create sepereate data subfiles based on hypnogram (N1, N2, N3, NREM, REM) 
+#     tic      = time.time()
+#     
+# #####================= Concatenation of selected channels ================#####   
+# 
+#     # Calculate referenced channels: 
+#     data_epoched_selected = data_epoched[Idx] - data_epoched[Idx_Mastoids]
+#     
+# #####================= Find order of the selected channels ===============#####  
+#  
+#     #Init
+#     picked_channels = []
+#     picked_refs     = []
+#     List_Channels   = []
+#     
+#     # Find main channels
+#     for jj,kk in enumerate(Idx):
+#         picked_channels = np.append(picked_channels, AvailableChannels[kk])
+#         
+#     # Find references
+#     for jj,kk in enumerate(Idx_Mastoids):
+#         picked_refs     = np.append(picked_refs, AvailableChannels[kk])
+#     print(f'subject LK {c_subj} --> detected channels: {str(picked_channels)} -  {str(picked_refs)}')
+#     
+#     # Create lis of channels
+#     for kk in np.arange(0, len(Idx)):
+#         List_Channels = np.append(List_Channels, picked_channels[kk] + '-' + picked_refs[kk])
+#     
+#     #%% Analysis section
+# #####================= remove chanbnels without scroing ==================#####   
+#     
+#     # assign the proper data and labels
+#     x_tmp_init = data_epoched_selected
+#     y_tmp_init = hyp
+#     
+#     # Ensure equalituy of length for arrays:
+#     Object.Ensure_data_label_length(x_tmp_init, y_tmp_init)
+#     
+#     # Remove non-scored epochs
+#     x_tmp, y_tmp =  Object.remove_channels_without_scoring(hypno_labels = y_tmp_init,
+#                                               input_feats = x_tmp_init)
+#     
+#     # Remove disconnections
+#     x_tmp, y_tmp =  Object.remove_disconnection(hypno_labels= y_tmp, 
+#                                                 input_feats=x_tmp) 
+#     
+# #####============= Create a one hot encoding form of labels ==============##### 
+# 
+#     # Create binary labels array
+#     yy = Object.One_hot_encoding(y_tmp)     
+#     
+#     # Ensure all the input labels have a class
+#     Object.Unlabaled_rows_detector(yy)
+#     
+#     # Initialize feature array:
+#     Feat_all_channels = np.empty((np.shape(x_tmp)[-1],0))
+#       
+# #####================== Extract the relevant features ====================#####    
+#     print(f'Extracting features of subject {c_subj} ....')
+#     
+#     for k in np.arange(np.shape(data_epoched_selected)[0]):
+#         
+#         feat_temp         = Object.FeatureExtraction_per_subject(Input_data = x_tmp[k,:,:])
+#         Feat_all_channels = np.column_stack((Feat_all_channels,feat_temp))
+#         
+#     toc = time.time()
+#     print(f'Features of subject {c_subj} were successfully extracted in: {toc-tic} secs')
+#     
+#     # Double check the equality of size of arrays
+#     Object.Ensure_feature_label_length(Feat_all_channels, yy)
+#     
+#     # Defining dictionary to save features PER SUBJECT
+#     subjects_dic["subject{}".format(c_subj)] = Feat_all_channels
+#     
+#     # Defining dictionary to save hypnogram PER SUBJECT
+#     hyp_dic["hyp{}".format(c_subj)] = yy
+#     
+#     # Defining dictionary to save EEG raw data PER SUBJECT
+#     raw_data_dic["subject{}".format(c_subj)] = x_tmp
+#     
+#     
+# #####=============== Removing variables for next iteration ===============#####      
+#     del x_tmp, y_tmp, feat_temp, yy
+#     toc = time.time()
+#     
+#     print('Feature extraction of subject {c_subj} has been finished.')   
+# 
+# print('Total feature extraction of subjects took {tic_tot - time.time()} secs.')
+# #%% Save created features and labels
+# 
+# #####====================== Save extracted features ======================#####      
+# 
+# path     = project_folder +"3013080.02/ml_project/features/"
+# 
+# filename = 'sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored'
+# Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
+# 
+# #####====================== Save raw data as pickle ======================#####      
+# 
+# path     = project_folder + "features/"
+# 
+# filename = 'sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored_RawData'
+# Object.save_dictionary(path, filename, hyp_dic, raw_data_dic)
+# 
+# 
+# =============================================================================
 
 #%% Load featureset and labels
 
-path                  =  project_folder + "features/"
-filename              =  "sleep_scoring_NoArousal_8channels"
+path     = project_folder +"3013080.02/ml_project/features/"
+filename              =  "sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored"
 #filename              = "sleep_scoring_NoArousal_8channels"
 subjects_dic, hyp_dic = Object.load_dictionary(path, filename)
 
@@ -325,7 +327,7 @@ X_train, X_test = Object.Standardadize_features(X_train, X_test)
 
 ########========== select features only on first iteration ============########
 
-td = 6 # Time dependence: number of epochs of memory
+td = 5 # Time dependence: number of epochs of memory
 
 X_train_td = Object.add_time_dependence_backward(X_train, n_time_dependence=td,
                                                     padding_type = 'sequential')
@@ -338,22 +340,23 @@ X_test_td  = Object.add_time_dependence_backward(X_test,  n_time_dependence=td,
 y_train_td = Object.binary_to_single_column_label(y_train)
 
 ########========== select features only on first iteration ============########
-"""
-ranks, Feat_selected, selected_feats_ind = Object.FeatSelect_Boruta(X_train_td,
-                                                    y_train_td[:,0], max_iter = 50, max_depth = 7)
 
-#######===================== Save selected feats =======================#######
-
-path                  =  project_folder + "features/"
-filename              = "Selected_Features_BoturaAfterTD=6_EightChannels_230520_Backward"
-import pickle        
-with open(path+filename+'.pickle',"wb") as f:
-    pickle.dump(selected_feats_ind, f)
-"""
+# =============================================================================
+# ranks, Feat_selected, selected_feats_ind = Object.FeatSelect_Boruta(X_train_td,
+#                                                     y_train_td[:,0], max_iter = 50, max_depth = 7)
+# 
+# #######===================== Save selected feats =======================#######
+# 
+# path     = project_folder +"3013080.02/ml_project/features/"
+# filename              = "Selected_Features_BoturaAfterTD=5_Fp1-Fp2_030620_Backward_Final"
+# with open(path+filename+'.pickle',"wb") as f:
+#     pickle.dump(selected_feats_ind, f)
+# 
+# =============================================================================
 ########################### Load selected feats ###############################
 
-path                  =  project_folder  + "features/"
-filename              = "sleep_scoring_NoArousal_8channels_selected_feats_NEW"
+path     = project_folder +"3013080.02/ml_project/features/"
+filename              = "Selected_Features_BoturaAfterTD=5_Fp1-Fp2_030620_Backward"
 #filename              = "sleep_scoring_NoArousal_8channels_selected_feats_NEW"
 with open(path + filename + '.pickle', "rb") as f: 
     selected_feats_ind = pickle.load(f)
@@ -366,47 +369,56 @@ X_test  = X_test_td[:, selected_feats_ind]
 ########============== Define classifier of interest ==================########
 
 y_pred = Object.KernelSVM_Modelling(X_train, y_train,X_test, y_test, kernel='rbf')
-y_pred = Object.XGB_Modelling(X_train, y_train,X_test, y_test, n_estimators = 300, 
-                      max_depth=3, learning_rate=.1)
+y_pred = Object.ANN_Modelling(X_train, y_train, X_test, units_h1=80, units_h2 = 80, units_output = 5,
+                              activation_out = 'softmax',
+                              init = 'uniform', activation = 'relu', optimizer = 'adam',
+                              loss = 'crossentropy', metrics = ['accuracy'],
+                              h3_status = 'deactive', units_h3 = 50)
+# =============================================================================
+# y_pred = Object.XGB_Modelling(X_train, y_train,X_test, y_test, n_estimators = 300, 
+#                       max_depth=3, learning_rate=.1)
+# =============================================================================
 
 ########===== Metrics to assess the model performance on test data ====########
 
 Acc, Recall, prec, f1_sc, kappa, mcm= Object.multi_label_confusion_matrix(y_test, y_pred)
 
-########================= Creating subjective outputs =================########
+# =============================================================================
+# ########================= Creating subjective outputs =================########
+# 
+# Object.create_subjecive_results(y_true=y_test, y_pred=y_pred, 
+#                                 test_subjects_list = test_subjects_list,
+#                                 subjects_data_dic = subjects_dic,
+#                                 fname_save = "results")
+# 
+# ########============= find number of epochs per stage =================########
+# 
+# Object.find_number_of_samples_per_class(y_test, including_artefact = False)
+# 
+# ########================== Comparative hypnogram ======================########
+# 
+# Object.plot_comparative_hyp(y_true = y_test, y_pred = y_pred, mark_REM = 'active')
+# 
+# ########==================== Plot subjectve hypnos ====================########
+# 
+# Object.plot_subjective_hypno(y_true=y_test, y_pred=y_pred, 
+#                              test_subjects_list=test_subjects_list,
+#                              subjects_data_dic=subjects_dic,
+#                              save_fig = True, 
+#                              directory="P:/3013080.02/Mahdad/Github/ssccoorriinngg/")
+# 
+# ########================== Plot subjective conf-mat  ==================########
+# 
+# Object.plot_confusion_mat_subjective(y_true=y_test, y_pred=y_pred, 
+#                              test_subjects_list=test_subjects_list,
+#                              subjects_data_dic=subjects_dic)
+# 
+# ########========================== Save figure =======================#########
+# Object.save_figure(saving_format = '.png',
+#                    directory="P:/3013080.02/Mahdad/Github/ssccoorriinngg/",
+#                    saving_name = 'test_subject_all' + str(c_subj), dpi = 900,
+#                    full_screen = False)
+# 
+# =============================================================================
 
-Object.create_subjecive_results(y_true=y_test, y_pred=y_pred, 
-                                test_subjects_list = test_subjects_list,
-                                subjects_data_dic = subjects_dic,
-                                fname_save = "results")
-
-########============= find number of epochs per stage =================########
-
-Object.find_number_of_samples_per_class(y_test, including_artefact = False)
-
-########================== Comparative hypnogram ======================########
-
-hyp_test = Object.binary_to_single_column_label(y_test)
-hyp_pred = Object.binary_to_single_column_label(y_pred)
-Object.plot_comparative_hyp(hyp_true = hyp_test, hyp_pred = hyp_pred, mark_REM = 'active')
-
-########==================== Plot subjectve hypnos ====================########
-
-Object.plot_subjective_hypno(y_true=y_test, y_pred=y_pred, 
-                             test_subjects_list=test_subjects_list,
-                             subjects_data_dic=subjects_dic,
-                             save_fig = True, 
-                             directory="C:/PhD/Github/ssccoorriinngg/")
-
-########================== Plot subjective conf-mat  ==================########
-
-Object.plot_confusion_mat_subjective(y_true=y_test, y_pred=y_pred, 
-                             test_subjects_list=test_subjects_list,
-                             subjects_data_dic=subjects_dic)
-
-########========================== Save figure =======================#########
-Object.save_figure(saving_format = '.png',
-                   directory = '/project/3013080.02/Mahdad/Github/ssccoorriinngg/Plots/v0.2/Fp1-Fp2/',
-                   saving_name = 'test_subject_all' + str(c_subj), dpi = 900,
-                   full_screen = False)
 

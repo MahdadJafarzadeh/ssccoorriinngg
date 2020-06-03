@@ -1044,7 +1044,7 @@ class ssccoorriinngg():
         return y_pred
     
     #%% ANN
-    def ANN_Modelling(self, X, y, units_h1,  input_dim, units_h2, units_output,
+    def ANN_Modelling(self, X_train, y_train,X_test, units_h1, units_h2, units_output, activation_out,
                   init = 'uniform', activation = 'relu', optimizer = 'adam',
                   loss = 'binary_crossentropy', metrics = ['accuracy'],
                   h3_status = 'deactive', units_h3 = 50):
@@ -1057,7 +1057,7 @@ class ssccoorriinngg():
         classifier = Sequential()
         
         # Adding the input layer and the first hidden layer
-        classifier.add(Dense(units = units_h1, init = init, activation = activation, input_dim = input_dim))
+        classifier.add(Dense(units = units_h1, init = init, activation = activation, input_dim = np.shape(X_train)[1]))
         
         # Adding the second hidden layer
         classifier.add(Dense(units = units_h2 , init = init, activation = activation))
@@ -1067,12 +1067,18 @@ class ssccoorriinngg():
             classifier.add(Dense(units = units_h3 , init = init, activation = activation))
             
         # Adding the output layer
-        classifier.add(Dense(units = units_output, init = init, activation = 'sigmoid'))
+        classifier.add(Dense(units = units_output, init = init, activation = activation_out))
         
         # Compiling the ANN
         classifier.compile(optimizer = optimizer, loss = loss , metrics = metrics)
         
-        return classifier
+        # Fit to train
+        classifier.fit(X_train, y_train)
+        
+        # Predict
+        y_pred = classifier.predict(X_test)
+        
+        return y_pred
     
     #%% Extra randomized trees
     def Extra_randomized_trees(self, X_train, y_train, X_test,y_test, n_estimators= 250, max_depth = None, min_samples_split =2,
@@ -1380,7 +1386,7 @@ class ssccoorriinngg():
     #%% Plot confusion matrix
     def plot_confusion_matrix(self, y_test,y_pred, target_names = ['Wake','N1','N2','SWS','REM'],
                           title='Confusion matrix of ssccoorriinngg algorithm',
-                          cmap=None,
+                          cmap = None,
                           normalize=True):
     
         import matplotlib.pyplot as plt
@@ -1641,8 +1647,14 @@ class ssccoorriinngg():
 
     def plot_comparative_hyp(self, hyp_true, hyp_pred, mark_REM = 'active',
                              Title = 'True Hypnogram'):
-        
         import matplotlib.pyplot as plt
+# =============================================================================
+#         hyp_true = self.binary_to_single_column_label(y_true)
+#         if y_pred[1]:
+#             hyp_pred = self.binary_to_single_column_label(y_pred)
+#         else: 
+#             hyp_pred = y_pred
+# =============================================================================
     
         stages = hyp_true
         #stages = np.row_stack((stages, stages[-1]))
@@ -1975,7 +1987,7 @@ class ssccoorriinngg():
         # Add overall results
         with  open(fname_save + ".txt", "a") as f:
             f.write("==================================================================\n")
-            f.write("Overal results:\n")
+            f.write("Overall results:\n")
             f.write("==================================================================\r\n")
             f.write("Accuracy for Wake, N1, N2, N3, and REM were respectively: %s \r\n" % str(Acc))
             f.write("Recall for Wake, N1, N2, N3, and REM were respectively: %s \r\n" % str(Recall))
