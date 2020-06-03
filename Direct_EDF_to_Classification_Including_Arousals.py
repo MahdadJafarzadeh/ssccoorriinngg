@@ -55,17 +55,18 @@ for indx, c in enumerate(gp):
 subjects_dic     = {}
 hyp_dic          = {}
 metrics_per_fold = {}
-
+raw_data_dic     = {}
 #####============= create an object of ssccoorriinngg class ==============#####
 
 Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
-"""
+
 tic_tot = time.time()
 
 # Igonre unnecessary warnings
 np.seterr(divide='ignore', invalid='ignore')
 
 #####============= Iterate through each subject to find data =============#####
+
 for idx, c_subj in enumerate(subj_c):
 
         
@@ -133,15 +134,25 @@ for idx, c_subj in enumerate(subj_c):
     # Calculate referenced channels: 
     data_epoched_selected = data_epoched[Idx] - data_epoched[Idx_Mastoids]
     
-    # show picked channels for analysis
+#####================= Find order of the selected channels ===============#####  
+ 
+    #Init
     picked_channels = []
+    picked_refs     = []
+    List_Channels   = []
+    
+    # Find main channels
     for jj,kk in enumerate(Idx):
         picked_channels = np.append(picked_channels, AvailableChannels[kk])
         
-    print(f'subject LK {c_subj} --> detected channels: {picked_channels}')
-    # Add non-referenced channels:  --> Deactive
-    #data_epoched_selected_ = np.concatenate([data_epoched_selected, data_epoched_nonref], 0)
-    print('Time to split sleep stages per epoch: {}'.format(time.time()-tic))
+    # Find references
+    for jj,kk in enumerate(Idx_Mastoids):
+        picked_refs     = np.append(picked_refs, AvailableChannels[kk])
+    print(f'subject LK {c_subj} --> detected channels: {str(picked_channels)} -  {str(picked_refs)}')
+    
+    # Create lis of channels
+    for kk in np.arange(0, len(Idx)):
+        List_Channels = np.append(List_Channels, picked_channels[kk] + '-' + picked_refs[kk])
     
     #%% Analysis section
 #####================= remove chanbnels without scroing ==================#####   
@@ -158,8 +169,8 @@ for idx, c_subj in enumerate(subj_c):
                                               input_feats = x_tmp_init)
     
     # Remove disconnections
-    '''x_tmp, y_tmp =  Object.remove_disconnection(hypno_labels= y_tmp, 
-                                                input_feats=x_tmp) '''
+    x_tmp, y_tmp =  Object.remove_disconnection(hypno_labels= y_tmp, 
+                                                input_feats=x_tmp) 
     
 #####============= Create a one hot encoding form of labels ==============##### 
 
@@ -173,6 +184,7 @@ for idx, c_subj in enumerate(subj_c):
     Feat_all_channels = np.empty((np.shape(x_tmp)[-1],0))
       
 #####================== Extract the relevant features ====================#####    
+    print(f'Extracting features of subject {c_subj} ....')
     
     for k in np.arange(np.shape(data_epoched_selected)[0]):
         
@@ -191,6 +203,10 @@ for idx, c_subj in enumerate(subj_c):
     # Defining dictionary to save hypnogram PER SUBJECT
     hyp_dic["hyp{}".format(c_subj)] = yy
     
+    # Defining dictionary to save EEG raw data PER SUBJECT
+    raw_data_dic["subject{}".format(c_subj)] = x_tmp
+    
+    
 #####=============== Removing variables for next iteration ===============#####      
     del x_tmp, y_tmp, feat_temp, yy
     toc = time.time()
@@ -203,8 +219,16 @@ print('Total feature extraction of subjects took {tic_tot - time.time()} secs.')
 #####====================== Save extracted features ======================#####      
 
 path     = project_folder +"features/"
-filename = 'sleep_scoring_Fp1-Fp2_220520_IncludeContaminatedStagesWithArtefact_IncludeDisconnection_RemoveOnly-1_ExcludingSubject35'
+
+filename = 'sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored'
 Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
+
+#####====================== Save raw data as pickle ======================#####      
+
+path     = project_folder + "features/"
+
+filename = 'sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored_RawData'
+Object.save_dictionary(path, filename, hyp_dic, raw_data_dic)
 
 """
 

@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Created on 29/03/2020 
-@author: Mahdad
 
-THIS IS THE CLASS FOR "MACHINE LEARNING & DEPRESSION PROJECT."
-ML_Deperession class is made to classify Normal EEG epochs from the ones from
-depressed people. Using this code, one can use channels of interest and sleep
-stges of interest to perform classification.
+@author: Mahdad Jafarzadeh
+
+THIS IS THE CLASS FOR "AUTOMATIC SLEEP SCORING" project. 
+
 The class is capable of extracting relevant features, applying various machine-
 learning algorithms and finally applying Randomized grid search to tune hyper-
 parameters of different classifiers.
@@ -749,7 +748,7 @@ class ssccoorriinngg():
             
             ''' Root mean square '''
             rms = np.sqrt(1 / len(data) * sum(np.abs(data)**2))
-            ''' Spectral edge frequency features --> SEF50 and SEF95'''   
+
             ''' Spectral edge frequency features --> SEF50 and SEF95'''
             # Imtiaz et al. proposed the freq band of investigation: 8 - 16 Hz
             data_SEF =  butter_bandpass_filter(data=data, lowcut=8, highcut=16, fs=fs, order=2)
@@ -980,7 +979,7 @@ class ssccoorriinngg():
     #%% Random Forest
     def RandomForest_Modelling(self, X_train, y_train,X_test, y_test, n_estimators = 500):
         
-        classifier_RF = RandomForestClassifier(n_estimators = n_estimators)
+        classifier_RF = RandomForestClassifier(n_jobs=-1, n_estimators = n_estimators)
         classifier_RF.fit(X_train, y_train)
         y_pred = classifier_RF.predict(X_test)
 
@@ -1022,7 +1021,7 @@ class ssccoorriinngg():
                       max_depth=3, learning_rate=.1):
         tic = time.time()
         from xgboost import XGBClassifier
-        classifier_xgb = XGBClassifier(n_estimators = n_estimators, max_depth = max_depth,
+        classifier_xgb = XGBClassifier(n_jobs=-1, n_estimators = n_estimators, max_depth = max_depth,
                                        learning_rate = learning_rate)
         
         if np.shape(y_train)[1] > 1:
@@ -1445,33 +1444,29 @@ class ssccoorriinngg():
     #%% One-Hot Encoding WITH AROUSALS
     def One_hot_encoding(self, hyp):
         ''' column 0: wake - column 1: N1 - column 2: N2 - column 3: SWS - column 4: REM
-            column 5: Movement
+            
         '''
        
-        Out = np.zeros((len(hyp), 6))
+        Out = np.zeros((len(hyp), 5))
         
-        # Find index of classes and exclude the ones contaminated with artefact
-        '''if Include_artefact_stages == False:
+        # Find index of classes and EXCLUDE the ones contaminated with ARTEFACT
             
-            Wake_idx = [i for i,j in enumerate(hyp[:,0]) if ((j == 0) and (hyp[i,1]==0))]
-            N1_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 1) and (hyp[i,1]==0))]
-            N2_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 2) and (hyp[i,1]==0))]
-            N3_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 3) and (hyp[i,1]==0))]
-            REM_idx  = [i for i,j in enumerate(hyp[:,0]) if ((j == 5) and (hyp[i,1]==0))]
+# =============================================================================
+#         Wake_idx = [i for i,j in enumerate(hyp[:,0]) if ((j == 0) and (hyp[i,1]==0))]
+#         N1_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 1) and (hyp[i,1]==0))]
+#         N2_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 2) and (hyp[i,1]==0))]
+#         N3_idx   = [i for i,j in enumerate(hyp[:,0]) if ((j == 3) and (hyp[i,1]==0))]
+#         REM_idx  = [i for i,j in enumerate(hyp[:,0]) if ((j == 5) and (hyp[i,1]==0))]
+# =============================================================================
             
-        # Find index of classes and also include the ones contaminated with artefact   
-        elif Include_artefact_stages == True: 
-            '''
+        # Find index of classes and also INCLUDE the ones contaminated with ARTEFACT   
+
         Wake_idx = [i for i,j in enumerate(hyp[:,0]) if (j == 0) ]
         N1_idx   = [i for i,j in enumerate(hyp[:,0]) if (j == 1) ]
         N2_idx   = [i for i,j in enumerate(hyp[:,0]) if (j == 2) ]
         N3_idx   = [i for i,j in enumerate(hyp[:,0]) if (j == 3) ]
         REM_idx  = [i for i,j in enumerate(hyp[:,0]) if (j == 5) ]
-        Mov_idx  = [i for i,j in enumerate(hyp[:,0]) if (j == 8) ]
-        # Find arousals '''
-        '''
-        if include_arousal == True:
-            Mov_idx  = [i for i,j in enumerate(hyp[:,0]) if ((j == 8) or (hyp[i,1]==1))] '''
+        
         
         # Replacing values of each class in corresponding column
         Out[Wake_idx, 0] = 1
@@ -1479,16 +1474,6 @@ class ssccoorriinngg():
         Out[N2_idx,   2] = 1
         Out[N3_idx,   3] = 1
         Out[REM_idx,  4] = 1
-        Out[Mov_idx,  5] = 1
-        ''' 
-        # Check arousal inclusion flag
-        if include_arousal == True:
-            Out[Mov_idx,  5] = 1
-        
-        # Check Unknown inclusion flag
-        if include_unknown == True:
-            Unknown_idx = [i for i,j in enumerate(hyp[:,0]) if (j == -1)]
-            Out[Unknown_idx,  5] = 1 '''
         
         return Out
     
@@ -1502,6 +1487,8 @@ class ssccoorriinngg():
                 pass
             else:
                 Unlabeled = Unlabeled + 1
+        if Unlabeled!= 0:
+            raise ValueError("Some of the rows do not have a label!!!")
                 
         print(f'Total of {Unlabeled} unlabeled rows were found.')
     #%% Save the feature-label pair as a pickle file
@@ -2102,4 +2089,120 @@ class ssccoorriinngg():
             print("Length of data and hypnogram are identical! Perfect!")
         else:
             raise ValueError("Lengths of data epochs and hypnogram labels are different!!!")   
-                        
+            
+    #%% Plot accceleration data
+    def Read_Acceleration_data(folder = "C:/PhD/Zmax/", axis_files = ["dX", "dY", "dZ"],
+                           file_format = ".edf", plot_Acc = True):
+        import mne
+
+        # Loading Acceleration data
+        Acc_X   = mne.io.read_raw_edf(folder + axis_files[0] + file_format)
+        Acc_Y   = mne.io.read_raw_edf(folder + axis_files[1] + file_format)
+        Acc_Z   = mne.io.read_raw_edf(folder + axis_files[2] + file_format)
+        
+        # Get data
+        Acc_X   = Acc_X.get_data()
+        Acc_Y   = Acc_Y.get_data()
+        Acc_Z   = Acc_Z.get_data()
+        
+        # Acc data in an array format
+        Acc     = [Acc_X, Acc_Y, Acc_Z]
+        
+        # Compute length of data
+        N       = np.shape(Acc_X)[1]
+        
+        # Init norm of acc
+        AccNorm = np.empty((1,N))
+        
+        # Compute norm of Acc
+        for i in np.arange(0,N):
+            
+            AccNorm[0,i] = np.sqrt(Acc_X[0,i]**2 + Acc_Y[0,i]**2 + Acc_Z[0,i]**2 )
+            
+        # Calculate mean of Acc
+        MeanAcc        = np.mean(AccNorm)
+        
+        # Remove mean 
+        AccNorm_filt   = AccNorm - MeanAcc
+        
+        if plot_Acc == True:
+            
+            # Create figure
+            fig, axs = plt.subplots(2,1, figsize=(20, 10))
+            
+            # First subplot shows axis-based acceleration
+            samples = np.arange(0, N)
+            plt.axes(axs[0])
+            plt.plot(samples, np.ravel(Acc_X), color = 'blue', label = 'Acc_X')
+            plt.plot(samples, np.ravel(Acc_Y), color = 'green', label = 'Acc_Y')
+            plt.plot(samples, np.ravel(Acc_Z), color = 'red', label = 'Acc_Z')
+            plt.ylabel('Amplitude (g)')
+            plt.xlabel('Sapmles')
+            plt.title('Acceleration of different axes')
+            plt.xlim(0, N) 
+            plt.legend()
+            # Second plot is just norm of Acc
+            plt.axes(axs[1])
+            plt.plot(samples, np.ravel(AccNorm_filt), color = 'black')
+            plt.ylabel('Amplitude (g)')
+            plt.xlabel('Sapmles')
+            plt.title('Norm of  accelartion')
+            plt.xlim(0, N)
+        
+        return AccNorm, Acc
+   
+    #%% Read csv files
+    def read_csv(self, file, folder = "C:/PhD/Zmax/", 
+                 column_labels=["col1", "epoch", "stage_no", "stage", 
+                "start","end","date&time_start", "date&time_end"],
+                 slicing_col = 2):
+        
+        import pandas as pd        
+        
+        data = pd.read_csv(folder + file + ".csv", name = column_labels)
+        
+        df   = data.set_index("epoch", drop = False)
+        
+        sliced_data = df.iloc[:, slicing_col]
+        
+        return data, sliced_data
+    #%% Deep classifier
+    
+# =============================================================================
+#     def DeepClassifier(self, X_train, y_train, fs):
+#         
+#         "This is based on the pre-model created called: DeepSleepNet" 
+#         # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
+# 
+#         from keras.models import Sequential
+#         from keras.layers import Dense
+#         from keras.layers import Flatten
+#         from keras.layers import Dropout
+#         from keras.layers.convolutional import Conv1D
+#         from keras.layers.convolutional import MaxPooling1D
+#         
+#         # ~~~~~~~~~~~~~~~~~~~~~~~~ Reshaping input data~~~~~~~~~~~~~~~~~~~~~~ #
+#         #TO DO --> trainX, trainy
+#         
+#         # ~~~~~~~ Create model 1: Large Filter(lf) --> Frequency feats ~~~~~~~# 
+#         n_timesteps, n_features = trainX.shape[1], trainX.shape[2]
+#         model_lf = Sequential()
+#         model_lf.add(Conv1D(filters = 64, kernel_size= int(fs/2), activation='relu', strides = int(fs/16), input_shape=(n_timesteps,n_features)))
+#         model_lf.add(MaxPooling1D(pool_size=8, strides = 8))
+#         model_lf.add(Dropout(.5))
+#         model_lf.add(Conv1D(filters = 128, kernel_size= 8, activation='relu'))
+#         model_lf.add(Conv1D(filters = 128, kernel_size= 8, activation='relu'))
+#         model_lf.add(Conv1D(filters = 128, kernel_size= 8, activation='relu'))
+#         model_lf.add(MaxPooling1D(pool_size = 4, strides = 4))
+# 
+#         # ~~~~~~~ Create model 2: Small Filter(sf) --> Temporal feats ~~~~~~~~# 
+# 
+#         model_sf = Sequential()
+#         model_sf.add(Conv1D(filters = 64, kernel_size= int(fs*4), activation='relu', strides = int(fs/2), input_shape=(n_timesteps,n_features)))
+#         model_sf.add(MaxPooling1D(pool_size = 4, strides = 4))
+#         model_sf.add(Dropout(.5))
+#         model_sf.add(Conv1D(filters = 128, kernel_size= 6, activation='relu'))
+#         model_sf.add(Conv1D(filters = 128, kernel_size= 6, activation='relu'))
+#         model_sf.add(Conv1D(filters = 128, kernel_size= 6, activation='relu'))
+#         model_sf.add(MaxPooling1D(pool_size = 2, strides = 2))
+# =============================================================================
