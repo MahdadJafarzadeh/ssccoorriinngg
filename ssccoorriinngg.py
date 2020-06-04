@@ -1044,14 +1044,14 @@ class ssccoorriinngg():
         return y_pred
     
     #%% ANN
-    def ANN_Modelling(self, X_train, y_train,X_test, units_h1, units_h2, units_output, activation_out,
+    def ANN_classifier(self, X_train, y_train,X_test, units_h1, units_h2, units_output, activation_out,
                   init = 'uniform', activation = 'relu', optimizer = 'adam',
-                  loss = 'binary_crossentropy', metrics = ['accuracy'],
-                  h3_status = 'deactive', units_h3 = 50):
+                  loss = 'mean_squared_logarithmic_error', metrics = ['accuracy'],
+                  h3_status = 'deactive', units_h3 = 50, epochs = 10, batch_size = 32):
         # Importing the Keras libraries and packages
         import keras
         from keras.models import Sequential
-        from keras.layers import Dense
+        from keras.layers import Dense, Dropout, BatchNormalization
         
         # Initialising the ANN
         classifier = Sequential()
@@ -1059,8 +1059,16 @@ class ssccoorriinngg():
         # Adding the input layer and the first hidden layer
         classifier.add(Dense(units = units_h1, init = init, activation = activation, input_dim = np.shape(X_train)[1]))
         
+        # Add dropout and batch normalization
+        classifier.add(BatchNormalization())
+        classifier.add(Dropout(0.3))
+        
         # Adding the second hidden layer
         classifier.add(Dense(units = units_h2 , init = init, activation = activation))
+        
+        # Add dropout and batch normalization
+        classifier.add(BatchNormalization())
+        classifier.add(Dropout(0.3))
         
         # Adding the third hidden layer
         if h3_status == 'active':
@@ -1073,10 +1081,10 @@ class ssccoorriinngg():
         classifier.compile(optimizer = optimizer, loss = loss , metrics = metrics)
         
         # Fit to train
-        classifier.fit(X_train, y_train)
+        classifier.fit(X_train, y_train, epochs = epochs, batch_size = batch_size)
         
         # Predict
-        y_pred = classifier.predict(X_test)
+        y_pred = classifier.predict_classes(X_test)
         
         return y_pred
     
@@ -1392,6 +1400,15 @@ class ssccoorriinngg():
         import matplotlib.pyplot as plt
         import numpy as np
         import itertools
+        import matplotlib as m
+
+        cdict = {
+          'red'  :  ( (0.0, 0.25, .25), (0.02, .59, .59), (1., 1., .8)),
+          'green':  ( (0.0, 0.0, 0.0), (0.3, .45, .45), (1., .97, .97)),
+          'blue' :  ( (0.0, 1.0, 1.0), (0.02, .75, .75), (1., 0.45, 0.45))
+        }
+
+        Colors = m.colors.LinearSegmentedColormap('my_colormap', cdict, 1024)
         
         if np.shape(y_test)[1] > 1:
             y_test = self.binary_to_single_column_label(y_test)
@@ -1405,7 +1422,7 @@ class ssccoorriinngg():
             cmap = plt.get_cmap('Blues')
     
         plt.figure(figsize=(8, 6))
-        plt.imshow(cm, interpolation='nearest', cmap=cmap)
+        plt.imshow(cm, interpolation='nearest', cmap='jet')
         plt.title(title)
         plt.colorbar()
     
@@ -2178,24 +2195,113 @@ class ssccoorriinngg():
         sliced_data = df.iloc[:, slicing_col]
         
         return data, sliced_data
-    #%% Deep classifier
     
+    #%% LSTM classifier
 # =============================================================================
-#     def DeepClassifier(self, X_train, y_train, fs):
-#         
-#         "This is based on the pre-model created called: DeepSleepNet" 
-#         # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
-# 
+#     def LSTM_classifier(self, X_train, X_test,y_train):
 #         from keras.models import Sequential
 #         from keras.layers import Dense
-#         from keras.layers import Flatten
-#         from keras.layers import Dropout
-#         from keras.layers.convolutional import Conv1D
-#         from keras.layers.convolutional import MaxPooling1D
+#         from keras.layers import LSTM
 #         
-#         # ~~~~~~~~~~~~~~~~~~~~~~~~ Reshaping input data~~~~~~~~~~~~~~~~~~~~~~ #
-#         #TO DO --> trainX, trainy
-#         
+#         model = Sequential()
+#         model.add(LSTM(80, input_shape= np.shape(X_train)[1])
+#                   
+#         # Add dropout and batch normalization
+#         model.add(BatchNormalization())
+#         model.add(Dropout(0.3))
+#         model.add(Dense(1))
+#         model.compile(loss='mean_squared_error', optimizer='adam')
+#         model.fit(trainX, trainY, epochs=100, batch_size=1, verbose=2)
+# =============================================================================
+        
+    #%% Deep classifier
+    
+    def DeepClassifier(self, X_train, y_train, X_test, fs, verbose = 1, epochs = 100,
+                       batch_size = 512):
+        
+        "This is based on the pre-model created called: DeepSleepNet" 
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
+
+        from keras.models import Sequential
+        from keras.layers import Dense
+        from keras.layers import Flatten
+        from keras.layers import Dropout, BatchNormalization
+        from keras.layers.convolutional import Conv1D
+        from keras.layers.convolutional import MaxPooling1D
+        from keras.optimizers import adam
+
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Reshaping input data~~~~~~~~~~~~~~~~~~~~~~ #
+        
+        # reshape from [samples, timesteps] into [samples, timesteps, features]
+        
+        trainX = np.transpose(X_train)
+        testX  = np.transpose(X_test)
+        n_timesteps, n_features = trainX.shape[1], trainX.shape[2]
+        
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Creating model ~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+        model = Sequential()
+        
+        # Conv1
+        model.add(Conv1D(filters = 128, kernel_size= 50, activation='relu', strides = 5, input_shape=(n_timesteps,n_features)))
+        
+        # Add dropout and batch normalization 1
+        model.add(BatchNormalization())
+        model.add(Dropout(0.2))
+        
+        # Conv2
+        model.add(Conv1D(filters = 256, kernel_size= 5, activation='relu', strides = 1))
+        
+        # Add dropout and batch normalization 2
+        model.add(BatchNormalization())
+        model.add(Dropout(0.2))
+        
+        # Max-pooling1
+        model.add(MaxPooling1D(pool_size=2, strides = 1))
+        
+        # Conv3
+        model.add(Conv1D(filters = 300, kernel_size= 5, activation='relu', strides = 2))
+               
+        # Add dropout and batch normalization 3
+        model.add(BatchNormalization())
+        model.add(Dropout(0.2))
+
+        # Max-pooling 2
+        model.add(MaxPooling1D(pool_size=2, strides = 1))
+        
+        # Flatten
+        model.add(Flatten())
+        
+        # Dense 1
+        model.add(Dense(1500, activation='relu'))
+        
+        # Add dropout and batch normalization 4
+        model.add(BatchNormalization())
+        model.add(Dropout(0.5))
+        
+        # Dense 2
+        model.add(Dense(1500, activation='relu'))
+        
+        # Add dropout and batch normalization 5
+        model.add(BatchNormalization())
+        model.add(Dropout(0.5))
+        
+        # Output layer
+        model.add(Dense(5, activation='softmax'))
+        
+        # Compile
+        model.compile(loss='mean_squared_logarithmic_error', optimizer= 'adam', metrics=['accuracy'])   
+        
+        # Fit
+        model.fit(trainX, y_train, epochs=epochs, batch_size=batch_size, verbose=verbose)
+        
+        # Predict
+        y_pred = model.predict(testX)
+        
+        return y_pred
+
+        
+        
+# =============================================================================
 #         # ~~~~~~~ Create model 1: Large Filter(lf) --> Frequency feats ~~~~~~~# 
 #         n_timesteps, n_features = trainX.shape[1], trainX.shape[2]
 #         model_lf = Sequential()
@@ -2217,4 +2323,6 @@ class ssccoorriinngg():
 #         model_sf.add(Conv1D(filters = 128, kernel_size= 6, activation='relu'))
 #         model_sf.add(Conv1D(filters = 128, kernel_size= 6, activation='relu'))
 #         model_sf.add(MaxPooling1D(pool_size = 2, strides = 2))
+#         
+#         return model_sf, model_lf
 # =============================================================================

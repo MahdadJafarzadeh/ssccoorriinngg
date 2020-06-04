@@ -31,15 +31,14 @@ from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, preci
 #####===================== Defining project folder========================#####
 
 project_folder = "F:/Loreta_data/"
-project_folder = "P:/"
 
 #####===================== Reading EDF data files=========================#####
 
-pat_labels = loadtxt(project_folder+"3013080.02/ml_project/patient_labels.txt", delimiter="\t", skiprows = 1)
+pat_labels = loadtxt(project_folder+"patient_labels.txt", delimiter="\t", skiprows = 1)
 
 #####============= Distinguishing patients from control group=============#####
 
-gp = loadtxt(project_folder+"3013080.02/ml_project/grouping.txt", delimiter="\t", skiprows = 1, dtype = 'str')
+gp = loadtxt(project_folder+"grouping.txt", delimiter="\t", skiprows = 1, dtype = 'str')
 subj_c = [] # Control
 subj_p = [] # Patients
 
@@ -51,16 +50,17 @@ for indx, c in enumerate(gp):
     else:
         subj_p.append(int(c[0]))
 
-# Initialization
-subjects_dic     = {}
-hyp_dic          = {}
-metrics_per_fold = {}
-raw_data_dic     = {}
+
 #####============= create an object of ssccoorriinngg class ==============#####
 
 Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
 
 # =============================================================================
+#  #Initialization
+# subjects_dic     = {}
+# hyp_dic          = {}
+# metrics_per_fold = {}
+# raw_data_dic     = {}
 # tic_tot = time.time()
 # 
 # # Igonre unnecessary warnings
@@ -236,7 +236,7 @@ Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
 
 #%% Load featureset and labels
 
-path     = project_folder +"3013080.02/ml_project/features/"
+path     = project_folder +"features/"
 filename              =  "sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored"
 #filename              = "sleep_scoring_NoArousal_8channels"
 subjects_dic, hyp_dic = Object.load_dictionary(path, filename)
@@ -260,7 +260,7 @@ y_test  = np.empty((0, np.shape(hyp_dic['hyp14'])[1]))
 
 ########======= Picking the train subjetcs and concatenate them =======########
 tic = time.time()
-
+train_subjects_list = []
 for c_subj in subj_c[0:n_train]:
     
     # train hypnogram
@@ -276,6 +276,9 @@ for c_subj in subj_c[0:n_train]:
     # Concatenate features and labels
     X_train = np.row_stack((X_train, tmp_x))
     y_train = np.row_stack((y_train, tmp_y))
+    
+    # Keep the train subject
+    train_subjects_list.append(str_train_feat)
     del tmp_x, tmp_y
     
 print('Training set was successfully created in : {} secs'.format(time.time()-tic))
@@ -355,8 +358,8 @@ y_train_td = Object.binary_to_single_column_label(y_train)
 # =============================================================================
 ########################### Load selected feats ###############################
 
-path     = project_folder +"3013080.02/ml_project/features/"
-filename              = "Selected_Features_BoturaAfterTD=5_Fp1-Fp2_030620_Backward"
+path     = project_folder +"features/"
+filename              = "Selected_Features_BoturaAfterTD=5_Fp1-Fp2_030620_Backward_Final"
 #filename              = "sleep_scoring_NoArousal_8channels_selected_feats_NEW"
 with open(path + filename + '.pickle', "rb") as f: 
     selected_feats_ind = pickle.load(f)
@@ -368,12 +371,14 @@ X_test  = X_test_td[:, selected_feats_ind]
 
 ########============== Define classifier of interest ==================########
 
-y_pred = Object.KernelSVM_Modelling(X_train, y_train,X_test, y_test, kernel='rbf')
-y_pred = Object.ANN_Modelling(X_train, y_train, X_test, units_h1=80, units_h2 = 80, units_output = 5,
+#y_pred = Object.KernelSVM_Modelling(X_train, y_train,X_test, y_test, kernel='rbf')
+y_pred = Object.ANN_classifier(X_train, y_train, X_test, units_h1=80, units_h2 = 80, units_output = 5,
                               activation_out = 'softmax',
                               init = 'uniform', activation = 'relu', optimizer = 'adam',
-                              loss = 'crossentropy', metrics = ['accuracy'],
-                              h3_status = 'deactive', units_h3 = 50)
+                              loss = 'mean_squared_logarithmic_error', metrics = ['accuracy'],
+                              h3_status = 'deactive', units_h3 = 50, epochs = 100, batch_size = 512)
+
+#y_pred = Object.RandomForest_Modelling(X_train, y_train, X_test, y_test, n_estimators = 250)
 # =============================================================================
 # y_pred = Object.XGB_Modelling(X_train, y_train,X_test, y_test, n_estimators = 300, 
 #                       max_depth=3, learning_rate=.1)
@@ -383,42 +388,47 @@ y_pred = Object.ANN_Modelling(X_train, y_train, X_test, units_h1=80, units_h2 = 
 
 Acc, Recall, prec, f1_sc, kappa, mcm= Object.multi_label_confusion_matrix(y_test, y_pred)
 
-# =============================================================================
-# ########================= Creating subjective outputs =================########
-# 
-# Object.create_subjecive_results(y_true=y_test, y_pred=y_pred, 
-#                                 test_subjects_list = test_subjects_list,
-#                                 subjects_data_dic = subjects_dic,
-#                                 fname_save = "results")
-# 
-# ########============= find number of epochs per stage =================########
-# 
-# Object.find_number_of_samples_per_class(y_test, including_artefact = False)
-# 
-# ########================== Comparative hypnogram ======================########
-# 
-# Object.plot_comparative_hyp(y_true = y_test, y_pred = y_pred, mark_REM = 'active')
-# 
-# ########==================== Plot subjectve hypnos ====================########
-# 
-# Object.plot_subjective_hypno(y_true=y_test, y_pred=y_pred, 
-#                              test_subjects_list=test_subjects_list,
-#                              subjects_data_dic=subjects_dic,
-#                              save_fig = True, 
-#                              directory="P:/3013080.02/Mahdad/Github/ssccoorriinngg/")
-# 
-# ########================== Plot subjective conf-mat  ==================########
-# 
-# Object.plot_confusion_mat_subjective(y_true=y_test, y_pred=y_pred, 
-#                              test_subjects_list=test_subjects_list,
-#                              subjects_data_dic=subjects_dic)
-# 
-# ########========================== Save figure =======================#########
-# Object.save_figure(saving_format = '.png',
-#                    directory="P:/3013080.02/Mahdad/Github/ssccoorriinngg/",
-#                    saving_name = 'test_subject_all' + str(c_subj), dpi = 900,
-#                    full_screen = False)
-# 
-# =============================================================================
+########================= Creating subjective outputs =================########
+
+Object.create_subjecive_results(y_true=y_test, y_pred=y_pred, 
+                                test_subjects_list = test_subjects_list,
+                                subjects_data_dic = subjects_dic,
+                                fname_save = "results")
+
+########============= find number of epochs per stage =================########
+
+Object.find_number_of_samples_per_class(y_test, including_artefact = False)
+
+########================== Comparative hypnogram ======================########
+
+Object.plot_comparative_hyp(y_true = y_test, y_pred = y_pred, mark_REM = 'active')
+
+########==================== Plot subjectve hypnos ====================########
+
+Object.plot_subjective_hypno(y_true=y_test, y_pred=y_pred, 
+                             test_subjects_list=test_subjects_list,
+                             subjects_data_dic=subjects_dic,
+                             save_fig = True, 
+                             directory="C:/PhD/Github/ssccoorriinngg/")
+
+########=================== Plot overall conf-mat =======================######
+
+Object.plot_confusion_matrix(y_test,y_pred, target_names = ['Wake','N1','N2','SWS','REM'],
+                          title='Confusion matrix of ssccoorriinngg algorithm',
+                          cmap = None,
+                          normalize=True)
+
+########================== Plot subjective conf-mat  ==================########
+
+Object.plot_confusion_mat_subjective(y_true=y_test, y_pred=y_pred, 
+                             test_subjects_list=test_subjects_list,
+                             subjects_data_dic=subjects_dic)
+
+########========================== Save figure =======================#########
+Object.save_figure(saving_format = '.png',
+                   directory="P:/3013080.02/Mahdad/Github/ssccoorriinngg/",
+                   saving_name = 'test_subject_all' + str(c_subj), dpi = 900,
+                   full_screen = False)
+
 
 
