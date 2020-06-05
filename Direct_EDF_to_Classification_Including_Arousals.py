@@ -14,7 +14,7 @@ as input.
 """
 #%% Reading EDF section
 #####===================== Importiung libraries =========================#####
-
+import tensorflow as tf
 import mne
 import numpy as np
 from   numpy import loadtxt
@@ -375,7 +375,7 @@ X_test  = X_test_td[:, selected_feats_ind]
 y_pred = Object.ANN_classifier(X_train, y_train, X_test, units_h1=80, units_h2 = 80, units_output = 5,
                               activation_out = 'softmax',
                               init = 'uniform', activation = 'relu', optimizer = 'adam',
-                              loss = 'mean_squared_logarithmic_error', metrics = ['accuracy'],
+                              loss = 'categorical_crossentropy', metrics=[tf.keras.metrics.Recall()],
                               h3_status = 'deactive', units_h3 = 50, epochs = 100, batch_size = 512)
 
 #y_pred = Object.RandomForest_Modelling(X_train, y_train, X_test, y_test, n_estimators = 250)

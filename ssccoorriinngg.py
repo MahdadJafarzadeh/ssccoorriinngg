@@ -2212,14 +2212,13 @@ class ssccoorriinngg():
 #         model.add(Dense(1))
 #         model.compile(loss='mean_squared_error', optimizer='adam')
 #         model.fit(trainX, trainY, epochs=100, batch_size=1, verbose=2)
+#         
 # =============================================================================
-        
     #%% Deep classifier
     
     def DeepClassifier(self, X_train, y_train, X_test, fs, verbose = 1, epochs = 100,
                        batch_size = 512):
         
-        "This is based on the pre-model created called: DeepSleepNet" 
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
 
         from keras.models import Sequential
@@ -2300,29 +2299,193 @@ class ssccoorriinngg():
         return y_pred
 
         
+    #%% DeepSleepNet
+    
+    def DeepSleepNet_pretraining_classifier(self, X_train, X_test, fs):
         
-# =============================================================================
-#         # ~~~~~~~ Create model 1: Large Filter(lf) --> Frequency feats ~~~~~~~# 
-#         n_timesteps, n_features = trainX.shape[1], trainX.shape[2]
-#         model_lf = Sequential()
-#         model_lf.add(Conv1D(filters = 64, kernel_size= int(fs/2), activation='relu', strides = int(fs/16), input_shape=(n_timesteps,n_features)))
-#         model_lf.add(MaxPooling1D(pool_size=8, strides = 8))
-#         model_lf.add(Dropout(.5))
-#         model_lf.add(Conv1D(filters = 128, kernel_size= 8, activation='relu'))
-#         model_lf.add(Conv1D(filters = 128, kernel_size= 8, activation='relu'))
-#         model_lf.add(Conv1D(filters = 128, kernel_size= 8, activation='relu'))
-#         model_lf.add(MaxPooling1D(pool_size = 4, strides = 4))
-# 
-#         # ~~~~~~~ Create model 2: Small Filter(sf) --> Temporal feats ~~~~~~~~# 
-# 
-#         model_sf = Sequential()
-#         model_sf.add(Conv1D(filters = 64, kernel_size= int(fs*4), activation='relu', strides = int(fs/2), input_shape=(n_timesteps,n_features)))
-#         model_sf.add(MaxPooling1D(pool_size = 4, strides = 4))
-#         model_sf.add(Dropout(.5))
-#         model_sf.add(Conv1D(filters = 128, kernel_size= 6, activation='relu'))
-#         model_sf.add(Conv1D(filters = 128, kernel_size= 6, activation='relu'))
-#         model_sf.add(Conv1D(filters = 128, kernel_size= 6, activation='relu'))
-#         model_sf.add(MaxPooling1D(pool_size = 2, strides = 2))
-#         
-#         return model_sf, model_lf
-# =============================================================================
+        "This is based on the pre-model created called: DeepSleepNet" 
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
+        import tensorflow as tf
+        from keras.models import Sequential, Model
+        from keras.layers import Dense, Flatten, Dropout, BatchNormalization, Activation, concatenate
+        from keras.layers.convolutional import Conv1D
+        from keras.layers.convolutional import MaxPooling1D
+        from keras.optimizers import adam
+
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Reshaping input data~~~~~~~~~~~~~~~~~~~~~~ #
+        
+        # reshape from [samples, timesteps] into [samples, timesteps, features]
+        
+        trainX = np.transpose(X_train)
+        testX  = np.transpose(X_test)
+        n_timesteps, n_features = trainX.shape[1], trainX.shape[2]
+        
+        # ~~~~~~~ Create model 1: Large Filter(lf) --> Frequency feats ~~~~~~~# 
+        n_timesteps, n_features = trainX.shape[1], trainX.shape[2]
+        
+        # Init
+        model_lf = Sequential()
+        
+        #conv1 + Batch normalize (before activation) + RELU activation
+        model_lf.add(Conv1D(filters = 64, kernel_size= int(fs/2), strides = int(fs/16), use_bias=False, input_shape=(n_timesteps,n_features)))
+        model_lf.add(BatchNormalization())
+        model_lf.add(Activation("relu"))
+
+        
+        # Max-pooling1
+        model_lf.add(MaxPooling1D(pool_size=8, strides = 8))
+        
+        #Dropout1
+        model_lf.add(Dropout(.5))
+        
+        #conv2 + Batch normalize (before activation) + RELU activation
+        model_lf.add(Conv1D(filters = 128, kernel_size= 8, use_bias=False))
+        model_lf.add(BatchNormalization())
+        model_lf.add(Activation("relu"))
+        
+        #conv3 + Batch normalize (before activation) + RELU activation
+        model_lf.add(Conv1D(filters = 128, kernel_size= 8, use_bias=False))
+        model_lf.add(BatchNormalization())
+        model_lf.add(Activation("relu"))
+        
+        #conv4 + Batch normalize (before activation) + RELU activation
+        model_lf.add(Conv1D(filters = 128, kernel_size= 8, use_bias=False))
+        model_lf.add(BatchNormalization())
+        model_lf.add(Activation("relu"))
+        
+        #Max-pooling 2
+        model_lf.add(MaxPooling1D(pool_size = 4, strides = 4))
+        
+        # Flattening 
+        model_lf.flatten()
+        
+        # ~~~~~~~ Create model 2: Small Filter(sf) --> Temporal feats ~~~~~~~~#
+        
+        #Init
+        model_sf = Sequential()
+        
+        # Conv1
+        model_sf.add(Conv1D(filters = 64, kernel_size= int(fs*4), use_bias=False, strides = int(fs/2), input_shape=(n_timesteps,n_features)))
+        model_lf.add(BatchNormalization())
+        model_lf.add(Activation("relu"))       
+        # Max-pooling 1
+        model_sf.add(MaxPooling1D(pool_size = 4, strides = 4))
+        
+        # Dropout1
+        model_sf.add(Dropout(.5))
+        
+        # Conv2
+        model_sf.add(Conv1D(filters = 128, kernel_size= 6, use_bias=False))
+        model_lf.add(BatchNormalization())
+        model_lf.add(Activation("relu")) 
+        
+        # Conv3
+        model_sf.add(Conv1D(filters = 128, kernel_size= 6, use_bias=False))
+        model_lf.add(BatchNormalization())
+        model_lf.add(Activation("relu"))
+        
+        # Conv4
+        model_sf.add(Conv1D(filters = 128, kernel_size= 6, use_bias=False))
+        model_lf.add(BatchNormalization())
+        model_lf.add(Activation("relu"))
+        
+        # Max-pooling 2
+        model_sf.add(MaxPooling1D(pool_size = 2, strides = 2))
+        
+        # Flattening 
+        model_sf.flatten()
+        
+        # ====================== Concatenation of models ==================== #
+        
+        # Merge CNN_sf and CNN_lf
+        merged_CNNs = concatenate([model_lf, model_sf], axis = -1)
+        
+        # Flatten --> Deactive
+        #merged_CNNs.flatten()
+        
+        # Dopout
+        merged_CNNs.add(Dropout(.5))
+        
+        # Final layer for pre-training (5 neurons for wake to REM)
+        merged_CNNs.add(Dense(5, activation='softmax'))
+        
+        # Compile 
+        merged_CNNs.compile(loss='categorical_crossentropy', 
+                            optimizer= 'adam', metrics=[tf.keras.metrics.Recall()])   
+
+        # Create final model:Input is the same array of training, but twice 
+        
+        with tf.device('/cpu:0'):
+            model = Model(inputs=[trainX, trainX], outputs=[merged_CNNs])
+        
+        return model
+    
+    #%% DeepSleepNet - LSTM
+    def DeepSleepNet_LSTM(self, input_, vec_len, timesteps):
+        
+        "This is based on the LSTM-model created in DeepSleepNet" 
+        
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
+        import tensorflow as tf
+        from keras.models import Sequential, Model
+        from keras.layers import Dense, Flatten, Dropout, BatchNormalization, Activation, concatenate, Bidirectional, LSTM
+        from keras.layers.convolutional import Conv1D
+        from keras.layers.convolutional import MaxPooling1D
+        from keras.optimizers import adam
+
+        # Define input shape from CNNs (True?!!)
+        input_shape = (timesteps, vec_len)
+        
+        # ~~~~~~~~~~~~~~~~~~~~~ Creating fully_connected ~~~~~~~~~~~~~~~~~~~~ #
+        
+        # Initialize
+        model_fc = Sequential()
+        
+        # Add fully connected layer (feedback from CNN to LSTM output)
+        model_fc.add(Dense(1024,input_shape = input_shape))
+        
+        # BatchNormalization
+        model_fc.add(BatchNormalization())
+        
+        # Activation
+        model_fc.add(Activation("relu"))
+
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Creating bidir-LSTM ~~~~~~~~~~~~~~~~~~~~~~ #
+        
+        # Initialize
+        model_lstm = Sequential()
+        
+        # 1st LSTM
+        model_lstm.add(Bidirectional(LSTM(512, input_shape = input_shape)))
+
+        # Dopout
+        model_lstm.add(Dropout(.5))
+        
+        # 2nd LSTM
+        model_lstm.add(Bidirectional(LSTM(512)))
+
+        # Dopout
+        model_lstm.add(Dropout(.5))        
+        
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Merge LSTM and fc ~~~~~~~~~~~~~~~~~~~~~~~~ #
+        merged = concatenate([model_lstm, model_fc], axis = -1)
+        
+        # Flatten
+        merged.flatten()
+        
+        # Dopout
+        merged.add(Dropout(.5))
+        
+        # Final layer for pre-training (5 neurons for wake to REM)
+        merged.add(Dense(5, activation='softmax'))
+        
+        # Compile 
+        merged.compile(loss='categorical_crossentropy', 
+                            optimizer= 'adam', metrics=[tf.keras.metrics.Recall()])   
+        
+        # Create final model:Input is the same array of training, but twice 
+        
+        with tf.device('/cpu:0'):
+            model = Model(inputs=[input_, input_], outputs=[merged])
+            
+        return model

@@ -135,7 +135,7 @@ print('Test set was successfully created in : {} secs'.format(time.time()-tic))
 print(f'Raw train and test data were created.')
 
 y_pred = Object.DeepClassifier(X_train, y_train, X_test, fs = 200, verbose = 1, 
-                               epochs = 40, batch_size = 512)
+                               epochs = 40, batch_size = 1024)
 
 
 
