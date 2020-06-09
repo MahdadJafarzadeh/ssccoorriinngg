@@ -21,7 +21,7 @@ from ssccoorriinngg import ssccoorriinngg
 import numpy as np
 import pandas as pd 
 import pywt
-from scipy.signal import butter, lfilter, periodogram, spectrogram, welch
+from scipy.signal import butter, lfilter, periodogram, spectrogram, welch, filtfilt, iirnotch
 from sklearn.ensemble import RandomForestClassifier
 import heapq
 from scipy.signal import argrelextrema
@@ -51,6 +51,13 @@ class ssccoorriinngg():
         self.fs       = fs
         self.T        = T
         
+    #%% Notch-filter    
+    def NotchFilter(self, data, Fs, f0, Q):
+        w0 = f0/(Fs/2)
+        b, a = iirnotch(w0, Q)
+        y = filtfilt(b, a, data)
+        return y
+    
     #%% Loading existing featureset
     def LoadFeatureSet(self, path, fname, feats, labels):
         # Reading N3 epochs
@@ -59,6 +66,32 @@ class ssccoorriinngg():
             y  = rf['.'][labels].value
         return X, y
     
+    #%% Low=pass butterworth
+    def butter_lowpass_filter(self, data, cutoff, fs, order=2):
+        nyq = 0.5 * fs
+        normal_cutoff = cutoff / nyq
+        b, a = butter(order, normal_cutoff, btype='low', analog=False)
+        y = filtfilt(b, a, data)
+        return y    
+    
+    #%% Band-pass Filtering section
+    def butter_bandpass_filter(self, data, lowcut, highcut, fs, order = 2):
+        nyq = 0.5 * fs
+        low = lowcut /nyq
+        high = highcut/nyq
+        b, a = butter(order, [low, high], btype='band')
+        #print(b,a)
+        y = filtfilt(b, a, data)
+        return y
+    
+    #%% high-pass Filtering section
+    def butter_highpass_filter(self, data, highcut, fs, order):
+        nyq = 0.5 * fs
+        high = highcut/nyq
+        b, a = butter(order, high, btype='highpass')
+        y = filtfilt(b, a, data)
+        return y
+
     #%% Combining epochs
     def CombineEpochs(self, directory = 'P:/3013080.02/ml_project/scripts/1D_TimeSeries/train_test/',
                       ch = 'fp2-M1', N3_fname  = 'tr90_N3_fp1-M2_fp2-M1',
@@ -406,6 +439,7 @@ class ssccoorriinngg():
         y_test  = y_test_rp
         
         return X_train, X_test, y_train, y_test
+    
     
     #%% Feature extraction PER_Subject
     def FeatureExtraction_per_subject(self, Input_data):
@@ -857,13 +891,145 @@ class ssccoorriinngg():
             
             Features = np.row_stack((Features,feat))
         
-        #%% Replace the NaN values of features with the mean of each feature column
+        # Replace the NaN values of features with the mean of each feature column
         aa, bb = np.where(np.isnan(Features))
         for j in np.arange(int(len(aa))):
             Features[aa[j],bb[j]] = np.nanmean(Features[:,bb[j]])
         print('the NaN values were successfully replaced with the mean of related feature.')   
         
         return Features
+    
+    #%% Acceleration feature extraction
+    def Acc_feature_extraction(self, AccNorm, Acc, fs, axes_acc_status = 'deactive'):
+        "Acc is numpy.array including 3 components, namely X-, Y-, Z- components of acceleration. One can read these using self.Read_Acceleration_data. \
+        axes_acc_status: shows weather feature extraction is of interest in a aces-based manner."
+        
+        # init feature list
+        Features = np.empty((0, 22))
+        
+        # Take X-y-z components of Acc and split them
+# =============================================================================
+#         x_acc = Acc[0].flatten()
+#         y_acc = Acc[1].flatten()
+#         z_acc = Acc[2].flatten()
+# =============================================================================
+        
+        # Flattening Acc-Norm
+        AccNorm = AccNorm.flatten()
+        
+        #####============ Cut tail; use modulo to find full epochs ===============#####
+        
+        # Define length of epochs
+        self.len_epoch   = self.fs * self.T
+        
+        # Cut remaining tail from the last epoch
+        AccNorm = AccNorm[0:AccNorm.shape[0] - AccNorm.shape[0]%self.len_epoch]
+# =============================================================================
+#         x_acc   = x_acc[0:x_acc.shape[0] - x_acc.shape[0]%self.len_epoch]
+#         y_acc   = y_acc[0:y_acc.shape[0] - y_acc.shape[0]%self.len_epoch]
+#         z_acc   = z_acc[0:z_acc.shape[0] - z_acc.shape[0]%self.len_epoch]
+# =============================================================================
+
+        
+        #### ======================  pre-processing ========================= #
+        # Band-pass filtering to remove baseline and unnecessary noise
+        AccNorm_filt = self.butter_bandpass_filter(AccNorm, lowcut = .25, highcut = 80, fs= self.fs)
+        
+        # low-pass filtering axes-based acceleration signal
+# =============================================================================
+#         x_acc_filt = self.butter_lowpass_filter(x_acc, cutoff = 80, fs = self.fs, order = 2)
+#         y_acc_filt = self.butter_lowpass_filter(y_acc, cutoff = 80, fs = self.fs, order = 2)
+#         z_acc_filt = self.butter_lowpass_filter(z_acc, cutoff = 80, fs = self.fs, order = 2)
+# =============================================================================
+        
+        #### ================= Reshaping data per epoch ================== ####
+        AccNorm_filt = np.reshape(AccNorm_filt, (int(len(AccNorm_filt) / (self.fs*self.T)), self.fs*self.T))
+# =============================================================================
+#         x_acc_filt   = np.reshape(x_acc_filt, (int(len(x_acc_filt) / (self.fs*self.T)), self.fs*self.T))
+#         y_acc_filt   = np.reshape(y_acc_filt, (int(len(y_acc_filt) / (self.fs*self.T)), self.fs*self.T))
+#         z_acc_filt   = np.reshape(z_acc_filt, (int(len(z_acc_filt) / (self.fs*self.T)), self.fs*self.T))
+# =============================================================================
+        
+        ##### ============== Feature extraction: AccNorm ================ #####
+        # init 
+        window = 'hann'
+        Nfft = 2 ** 15
+        
+        # Defining for loop to extract features per epoch
+        for i in np.arange(len(AccNorm_filt)):
+            
+            # pick the current epoch
+            data = AccNorm_filt[i,:]
+            
+            # Statistical feats : NormAcc
+            mean_AccNorm = np.mean(data)
+            std_AccNorm  = np.std(data)       
+            var_AccNorm  = np.var(data)
+            skew_AccNorm = skew(data)
+            kurt_AccNorm = kurtosis(data)
+            
+            # Power
+            fm , pxx = periodogram(x = data, fs = fs, nfft = Nfft , window = window) 
+            freq_resolu_per= fm[1] - fm[0]  
+            power_AccNorm      = simps(pxx, dx = freq_resolu_per)
+            
+            # Initialization for wavelet 
+            cA_values  = []
+            cD_values  = []
+            cA_mean    = []
+            cA_std     = []
+            cA_Energy  = []
+            cD_mean    = []
+            cD_std     = []
+            cD_Energy  = []
+            Entropy_D  = []
+            Entropy_A  = []
+            
+            # Wavelet Decomposition
+            cA,cD=pywt.dwt(data,'coif1')
+            cA_values.append(cA)
+            cD_values.append(cD)
+            cA_mean.append(np.mean(cA_values))
+            cA_std.append(np.std(cA_values))
+            cA_Energy.append(np.sum(np.square(cA_values)))
+            cD_mean.append(np.mean(cD_values))
+            cD_std.append(np.std(cD_values))
+            cD_Energy.append(np.sum(np.square(cD_values)))
+            Entropy_D.append(np.sum(np.square(cD_values) * np.log(np.square(cD_values))))
+            Entropy_A.append(np.sum(np.square(cA_values) * np.log(np.square(cA_values))))
+            
+            # Hjorth Parameters
+            hjorth_activity     = np.var(data)
+            diff_input          = np.diff(data)
+            diff_diffinput      = np.diff(diff_input)
+            hjorth_mobility     = np.sqrt(np.var(diff_input)/hjorth_activity)
+            hjorth_diffmobility = np.sqrt(np.var(diff_diffinput)/np.var(diff_input))
+            hjorth_complexity   = hjorth_diffmobility / hjorth_mobility
+            
+            # Waveform length(WL)
+            WL = sum(abs(np.diff(data)))
+            
+            # Zerocrossing(ZC) 
+            zero_crossings = np.where(np.diff(np.signbit(data)))[0]
+            num_ZC = (len(zero_crossings))
+            
+            # Mean absolute value
+            MAV = sum(np.abs(data)) / len(data)
+            
+            # Simple Square Integral (SSI)
+            SSI = sum(np.abs(data)**2)
+            
+            # Root mean square
+            rms = np.sqrt(1 / len(data) * sum(np.abs(data)**2))
+            
+            #### ==================== Wrapping up ======================== ####
+            
+            feat= [mean_AccNorm, std_AccNorm, var_AccNorm, skew_AccNorm, kurt_AccNorm,
+                   power_AccNorm, cA_mean[0], cA_std[0], cA_Energy[0], cD_mean[0], cD_std[0], cD_Energy[0],
+                   Entropy_D[0], Entropy_A[0], hjorth_mobility, hjorth_diffmobility, hjorth_complexity,
+                   WL, num_ZC, MAV, SSI, rms]
+            
+            Features = np.row_stack((Features,feat))
         #%% Normalizing features
     
     def SaveFeatureSet(self, X, y, path, filename):
@@ -1374,6 +1540,28 @@ class ssccoorriinngg():
         
         return out_feats, out_labels
     
+    #%% find unscored values in Zmax
+    def find_unscored(self, hyp, subject_no, fname_save = "unscored_subjective"):
+    
+        # Initialize the .txt file for saving
+        import datetime
+        fmt='%d/%m/%Y ----- %H:%M:%S'
+        
+        # calculate unscored values
+        unscored  = [i for i,j in enumerate(hyp[:,1]) if (hyp[i,1]=='U')]
+        len_unscored = len(unscored)
+        
+        
+        with  open(fname_save + ".txt", "a") as f:
+            #f.write("This results file was created on : %s \r\n\n" % datetime.datetime.now().strftime(fmt))
+            f.write("==================================================================\n")
+            f.write("Subject %s : \n" % str(subject_no))
+            f.write("==================================================================\r\n")
+            f.write("Total of %s rows were not scored out of %s (%s percent)\n\r\n" % (str(len_unscored), str(np.shape(hyp)[0]), str(len_unscored/np.shape(hyp)[0]*100)))
+
+            #f.write("%s  %s (%s percent)" % (str(len_unscored), str(np.shape(hyp)[0]),str(len_unscored/np.shape(hyp)[0]*100:.2f)))
+
+
     #%% Replace the stage of arousal with wake
     def replace_arousal_with_wake(self, hypno_labels, input_feats):
         arousal    = [i for i,j in enumerate(hypno_labels[:,0]) if (hypno_labels[i,1]==1)]
@@ -2049,6 +2237,44 @@ class ssccoorriinngg():
             
             del current_size, y_pred_tmp, y_true_tmp
             
+    #%% Plot spectrogram
+
+    def spectrogram_creation(self, sig, fs, explanation='', saving_directory=None):
+        from lspopt import spectrogram_lspopt
+        import numpy as np
+        import matplotlib.pyplot as plt
+        for i in range(len(sig)):
+            f, t, Sxx = spectrogram_lspopt(x=sig[i], fs=fs, c_parameter=20.0, nperseg=int(30*fs), \
+                                           scaling='density')
+            Sxx = 10 * np.log10(Sxx) #power to db
+            
+    
+        #==== 1st Way =======
+        plt.figure()
+        ax = plt.axes()
+        plt.pcolormesh(t, f, Sxx)
+        plt.ylabel('Frequency [Hz]', size=20)
+        plt.xlabel('Time [sec]', size=20)
+        plt.title('C3 Multi-taper Spectrogram', size=25)
+        ax.tick_params(labelsize=15) #chnage size of tick parameters on x and y axes
+        
+        plt.colorbar()
+        #==== 1st Way =======
+        
+        #=== Maximize ====
+        figure = plt.gcf()  # get current figure
+        figure.set_size_inches(32, 18)
+        plt.show()
+        #=== Maximize ====
+        
+        #===== Save Figure ======
+        if(saving_directory != None):
+        
+           plt.savefig(saving_directory + '/' + explanation + '_' + str(i), pad_inches=0, \
+                       bbox_inches='tight', dpi=400)
+           print('Figure has saved successfully!')
+        #===== Save Figure ======
+           plt.close()
     #%% Plot subjective confusion matrix
     def plot_confusion_mat_subjective(self, y_true, y_pred, test_subjects_list,
                                  subjects_data_dic):
@@ -2120,14 +2346,14 @@ class ssccoorriinngg():
             raise ValueError("Lengths of data epochs and hypnogram labels are different!!!")   
             
     #%% Plot accceleration data
-    def Read_Acceleration_data(folder = "C:/PhD/Zmax/", axis_files = ["dX", "dY", "dZ"],
-                           file_format = ".edf", plot_Acc = True):
+    def Read_Acceleration_data(self, folder_acc , axis_files = ["dX", "dY", "dZ"],
+                           file_format = ".edf", plot_Acc = False):
         import mne
 
         # Loading Acceleration data
-        Acc_X   = mne.io.read_raw_edf(folder + axis_files[0] + file_format)
-        Acc_Y   = mne.io.read_raw_edf(folder + axis_files[1] + file_format)
-        Acc_Z   = mne.io.read_raw_edf(folder + axis_files[2] + file_format)
+        Acc_X   = mne.io.read_raw_edf(folder_acc + axis_files[0] + file_format)
+        Acc_Y   = mne.io.read_raw_edf(folder_acc + axis_files[1] + file_format)
+        Acc_Z   = mne.io.read_raw_edf(folder_acc + axis_files[2] + file_format)
         
         # Get data
         Acc_X   = Acc_X.get_data()
@@ -2184,11 +2410,11 @@ class ssccoorriinngg():
     def read_csv(self, file, folder = "C:/PhD/Zmax/", 
                  column_labels=["col1", "epoch", "stage_no", "stage", 
                 "start","end","date&time_start", "date&time_end"],
-                 slicing_col = 2):
+                 slicing_col = 2, delimiter = None):
         
         import pandas as pd        
         
-        data = pd.read_csv(folder + file + ".csv", name = column_labels)
+        data = pd.read_csv(folder + file + ".csv", names = column_labels, delimiter= delimiter)
         
         df   = data.set_index("epoch", drop = False)
         
@@ -2197,23 +2423,50 @@ class ssccoorriinngg():
         return data, sliced_data
     
     #%% LSTM classifier
-# =============================================================================
-#     def LSTM_classifier(self, X_train, X_test,y_train):
-#         from keras.models import Sequential
-#         from keras.layers import Dense
-#         from keras.layers import LSTM
-#         
-#         model = Sequential()
-#         model.add(LSTM(80, input_shape= np.shape(X_train)[1])
-#                   
-#         # Add dropout and batch normalization
-#         model.add(BatchNormalization())
-#         model.add(Dropout(0.3))
-#         model.add(Dense(1))
-#         model.compile(loss='mean_squared_error', optimizer='adam')
-#         model.fit(trainX, trainY, epochs=100, batch_size=1, verbose=2)
-#         
-# =============================================================================
+    def LSTM_classifier(self, X_train, X_test, y_train, neurons_l1 = 80, dropout = .3,
+                         neurons_l2 = 80, epochs = 100, batch_size = 512, verbose = 1,
+                         print_model_summary = True):
+        
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
+        from keras.models import Sequential
+        from keras.layers import Dense
+        from keras.layers import LSTM
+        
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Reshaping input data~~~~~~~~~~~~~~~~~~~~~~ #
+        # reshape from [samples, timesteps] into [samples, timesteps, features]
+        
+        trainX = np.transpose(X_train)
+        testX  = np.transpose(X_test)
+        n_timesteps, n_features = trainX.shape[1], trainX.shape[2]
+        trainY = y_train
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Creating model ~~~~~~~~~~~~~~~~~~~~~~~~~~~ #   
+        
+        # init
+        model = Sequential()
+        
+        # 1st layer + dropout
+        model.add(LSTM(neurons_l1, batch_input_shape=(batch_size, n_timesteps, n_features), recurrent_dropout=dropout))
+        
+        # 2nd layer + dropout
+        model.add(LSTM(neurons_l2, batch_input_shape=(batch_size, n_timesteps, n_features), recurrent_dropout=dropout)) 
+         
+        # Adding dense
+        model.add(Dense(5, activation='softmax'))
+        
+        # compile
+        model.compile(loss='mean_squared_error', optimizer='adam')
+        
+        # print model summary
+        if print_model_summary == True:
+            print(model.summary())
+        
+        # Fit to train data
+        model.fit(trainX, trainY, epochs=100, batch_size=1, verbose=2)
+        
+        # Predict
+        y_pred = model.predict(testX)
+        
+        return y_pred
     #%% Deep classifier
     
     def DeepClassifier(self, X_train, y_train, X_test, fs, verbose = 1, epochs = 100,
@@ -2368,6 +2621,7 @@ class ssccoorriinngg():
         model_sf.add(Conv1D(filters = 64, kernel_size= int(fs*4), use_bias=False, strides = int(fs/2), input_shape=(n_timesteps,n_features)))
         model_lf.add(BatchNormalization())
         model_lf.add(Activation("relu"))       
+        
         # Max-pooling 1
         model_sf.add(MaxPooling1D(pool_size = 4, strides = 4))
         
