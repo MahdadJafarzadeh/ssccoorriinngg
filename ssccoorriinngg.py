@@ -40,7 +40,7 @@ import nolds
 from scipy.integrate import simps
 import scipy
 import scipy.fftpack
-
+import tensorflow as tf
 
 class ssccoorriinngg():
     
@@ -2425,48 +2425,56 @@ class ssccoorriinngg():
     #%% LSTM classifier
     def LSTM_classifier(self, X_train, X_test, y_train, neurons_l1 = 80, dropout = .3,
                          neurons_l2 = 80, epochs = 100, batch_size = 512, verbose = 1,
+                         loss='mean_squared_error', optimizer='adam',
+                         metrics = [tf.keras.metrics.Recall()],
                          print_model_summary = True):
         
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
         from keras.models import Sequential
         from keras.layers import Dense
-        from keras.layers import LSTM
+        from keras.layers import LSTM, Bidirectional
         
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Reshaping input data~~~~~~~~~~~~~~~~~~~~~~ #
-        # reshape from [samples, timesteps] into [samples, timesteps, features]
         
-        trainX = np.transpose(X_train)
-        testX  = np.transpose(X_test)
+        # check if the existing data has 3 dimensions(reshape from [samples, timesteps] into [samples, timesteps, features])
+            
+        trainX = X_train.reshape(-1,1, np.shape(X_train)[1])
+        testX  = X_test.reshape(-1,1, np.shape(X_test)[1])
         n_timesteps, n_features = trainX.shape[1], trainX.shape[2]
-        trainY = y_train
+        trainY = y_train.reshape(-1,1, np.shape(y_train)[1])
+        
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Creating model ~~~~~~~~~~~~~~~~~~~~~~~~~~~ #   
+        
         
         # init
         model = Sequential()
         
         # 1st layer + dropout
-        model.add(LSTM(neurons_l1, batch_input_shape=(batch_size, n_timesteps, n_features), recurrent_dropout=dropout))
+        model.add(LSTM(neurons_l1, input_shape=(n_timesteps, n_features), recurrent_dropout=dropout, return_sequences=True))
         
         # 2nd layer + dropout
-        model.add(LSTM(neurons_l2, batch_input_shape=(batch_size, n_timesteps, n_features), recurrent_dropout=dropout)) 
+        model.add(LSTM(neurons_l2, input_shape=(n_timesteps, n_features), recurrent_dropout=dropout, return_sequences=True)) 
          
         # Adding dense
         model.add(Dense(5, activation='softmax'))
         
         # compile
-        model.compile(loss='mean_squared_error', optimizer='adam')
+        model.compile(loss=loss, optimizer=optimizer, metrics = metrics)
         
         # print model summary
         if print_model_summary == True:
             print(model.summary())
         
         # Fit to train data
-        model.fit(trainX, trainY, epochs=100, batch_size=1, verbose=2)
+        model.fit(trainX, trainY, epochs=epochs, batch_size=batch_size, verbose=verbose)
         
         # Predict
-        y_pred = model.predict(testX)
+        y_pred = model.predict_classes(testX)
         
         return y_pred
+    
+    #%% CNN+LSTM classifier
+    #def cnn
     #%% Deep classifier
     
     def DeepClassifier(self, X_train, y_train, X_test, fs, verbose = 1, epochs = 100,
@@ -2547,7 +2555,7 @@ class ssccoorriinngg():
         model.fit(trainX, y_train, epochs=epochs, batch_size=batch_size, verbose=verbose)
         
         # Predict
-        y_pred = model.predict(testX)
+        y_pred = model.predict_classes(testX)
         
         return y_pred
 

@@ -238,7 +238,6 @@ Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
 
 path     = project_folder +"features/"
 filename              =  "sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored"
-#filename              = "sleep_scoring_NoArousal_8channels"
 subjects_dic, hyp_dic = Object.load_dictionary(path, filename)
 
 #%% ================================Training part==============================
@@ -328,15 +327,6 @@ X_test  = Object.replace_inf_with_mean(X_test)
 
 X_train, X_test = Object.Standardadize_features(X_train, X_test)
 
-########========== select features only on first iteration ============########
-
-td = 5 # Time dependence: number of epochs of memory
-
-X_train_td = Object.add_time_dependence_backward(X_train, n_time_dependence=td,
-                                                    padding_type = 'sequential')
-
-X_test_td  = Object.add_time_dependence_backward(X_test,  n_time_dependence=td,
-                                                    padding_type = 'sequential')
 
 ########====================== Feature Selection ======================########
 
@@ -345,44 +335,39 @@ y_train_td = Object.binary_to_single_column_label(y_train)
 ########========== select features only on first iteration ============########
 
 # =============================================================================
-# ranks, Feat_selected, selected_feats_ind = Object.FeatSelect_Boruta(X_train_td,
-#                                                     y_train_td[:,0], max_iter = 50, max_depth = 7)
+# ranks, Feat_selected, selected_feats_ind = Object.FeatSelect_Boruta(X_train,
+#                                                     y_train[:,0], max_iter = 50, max_depth = 7)
 # 
 # #######===================== Save selected feats =======================#######
 # 
-# path     = project_folder +"3013080.02/ml_project/features/"
-# filename              = "Selected_Features_BoturaAfterTD=5_Fp1-Fp2_030620_Backward_Final"
+# path     = project_folder +"features/"
+# filename              = "Selected_Features_Botura_noTD_Fp1-Fp2_090620_created_for_lstm"
 # with open(path+filename+'.pickle',"wb") as f:
 #     pickle.dump(selected_feats_ind, f)
-# 
 # =============================================================================
+
 ########################### Load selected feats ###############################
 
 path     = project_folder +"features/"
-filename              = "Selected_Features_BoturaAfterTD=5_Fp1-Fp2_030620_Backward_Final"
+filename              = "Selected_Features_Botura_noTD_Fp1-Fp2_090620_created_for_lstm"
 #filename              = "sleep_scoring_NoArousal_8channels_selected_feats_NEW"
 with open(path + filename + '.pickle', "rb") as f: 
     selected_feats_ind = pickle.load(f)
     
 ########=================== Apply selected features ===================########
 
-X_train = X_train_td[:, selected_feats_ind]
-X_test  = X_test_td[:, selected_feats_ind]
+X_train = X_train[:, selected_feats_ind]
+X_test  = X_test[:, selected_feats_ind]
 
 ########============== Define classifier of interest ==================########
 
-#y_pred = Object.KernelSVM_Modelling(X_train, y_train,X_test, y_test, kernel='rbf')
-y_pred = Object.ANN_classifier(X_train, y_train, X_test, units_h1=80, units_h2 = 80, units_output = 5,
-                              activation_out = 'softmax',
-                              init = 'uniform', activation = 'relu', optimizer = 'adam',
-                              loss = 'categorical_crossentropy', metrics=[tf.keras.metrics.Recall()],
-                              h3_status = 'deactive', units_h3 = 50, epochs = 100, batch_size = 100)
+y_pred = Object.LSTM_classifier(X_train, X_test, y_train, neurons_l1 = 80, dropout = .3,
+                         neurons_l2 = 80, epochs = 100, batch_size = 50, verbose = 1,
+                         loss='mean_squared_error', optimizer='adamax',
+                         metrics = [tf.keras.metrics.Recall()],
+                         print_model_summary = True)
 
-#y_pred = Object.RandomForest_Modelling(X_train, y_train, X_test, y_test, n_estimators = 250)
-# =============================================================================
-# y_pred = Object.XGB_Modelling(X_train, y_train,X_test, y_test, n_estimators = 300, 
-#                       max_depth=3, learning_rate=.1)
-# =============================================================================
+
 
 ########===== Metrics to assess the model performance on test data ====########
 
