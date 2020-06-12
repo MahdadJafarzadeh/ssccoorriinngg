@@ -362,10 +362,10 @@ X_test  = X_test[:, selected_feats_ind]
 ########============== Define classifier of interest ==================########
 
 y_pred = Object.LSTM_classifier(X_train, X_test, y_train, neurons_l1 = 80, dropout = .3,
-                         neurons_l2 = 80, epochs = 100, batch_size = 50, verbose = 1,
+                         neurons_l2 = 80, epochs = 200, batch_size = 512, verbose = 1,
                          loss='mean_squared_error', optimizer='adamax',
                          metrics = [tf.keras.metrics.Recall()],
-                         print_model_summary = True)
+                         print_model_summary = True, bidirectional_ = False)
 
 
 
@@ -393,7 +393,7 @@ Object.plot_comparative_hyp(y_true = y_test, y_pred = y_pred, mark_REM = 'active
 Object.plot_subjective_hypno(y_true=y_test, y_pred=y_pred, 
                              test_subjects_list=test_subjects_list,
                              subjects_data_dic=subjects_dic,
-                             save_fig = True, 
+                             save_fig = False, 
                              directory="C:/PhD/Github/ssccoorriinngg/")
 
 ########=================== Plot overall conf-mat =======================######

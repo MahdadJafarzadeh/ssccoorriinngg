@@ -2427,12 +2427,22 @@ class ssccoorriinngg():
                          neurons_l2 = 80, epochs = 100, batch_size = 512, verbose = 1,
                          loss='mean_squared_error', optimizer='adam',
                          metrics = [tf.keras.metrics.Recall()],
-                         print_model_summary = True):
+                         print_model_summary = False, bidirectional_ = True):
         
+        """This function requires the hand-crafted features to be fed in: 
+            
+        Parameters:
+            
+        neurons_l1: neurouns/units in 1st layer.
+        
+        neurons_l2: neurouns/units in 2nd layer.
+        
+        bidirectional_: activates bidirectional LSTM (default: True)
+        """
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
         from keras.models import Sequential
         from keras.layers import Dense
-        from keras.layers import LSTM, Bidirectional
+        from keras.layers import LSTM, Bidirectional, TimeDistributed
         
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Reshaping input data~~~~~~~~~~~~~~~~~~~~~~ #
         
@@ -2445,25 +2455,29 @@ class ssccoorriinngg():
         
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Creating model ~~~~~~~~~~~~~~~~~~~~~~~~~~~ #   
         
-        
         # init
         model = Sequential()
         
-        # 1st layer + dropout
-        model.add(LSTM(neurons_l1, input_shape=(n_timesteps, n_features), recurrent_dropout=dropout, return_sequences=True))
-        
-        # 2nd layer + dropout
-        model.add(LSTM(neurons_l2, input_shape=(n_timesteps, n_features), recurrent_dropout=dropout, return_sequences=True)) 
+        #! Check bidirectional flag to activate/deactivate bidirectional training
+        if bidirectional_ == True:
+            
+            # 1st layer + dropout
+            model.add(Bidirectional(LSTM(neurons_l1, input_shape=(n_timesteps, n_features), recurrent_dropout=dropout, return_sequences=True)))
+            
+            # 2nd layer + dropout
+            model.add(Bidirectional(LSTM(neurons_l2, recurrent_dropout=dropout, return_sequences=True)))
+        else:
+            # 1st layer + dropout
+            model.add(LSTM(neurons_l1, input_shape=(n_timesteps, n_features), recurrent_dropout=dropout, return_sequences=True))
+            
+            # 2nd layer + dropout
+            model.add(LSTM(neurons_l2, recurrent_dropout=dropout, return_sequences=True))
          
         # Adding dense
-        model.add(Dense(5, activation='softmax'))
+        model.add(TimeDistributed(Dense(5, activation='softmax')))
         
         # compile
         model.compile(loss=loss, optimizer=optimizer, metrics = metrics)
-        
-        # print model summary
-        if print_model_summary == True:
-            print(model.summary())
         
         # Fit to train data
         model.fit(trainX, trainY, epochs=epochs, batch_size=batch_size, verbose=verbose)
@@ -2471,17 +2485,18 @@ class ssccoorriinngg():
         # Predict
         y_pred = model.predict_classes(testX)
         
+        # print model summary
+        if print_model_summary == True:
+            print(model.summary())
+        
         return y_pred
     
-    #%% CNN+LSTM classifier
-    #def cnn
-    #%% Deep classifier
+    #%% Deep CNN classifier
     
-    def DeepClassifier(self, X_train, y_train, X_test, fs, verbose = 1, epochs = 100,
+    def CNN_Classifier(self, X_train, y_train, X_test, fs, verbose = 1, epochs = 100,
                        batch_size = 512):
         
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
-
         from keras.models import Sequential
         from keras.layers import Dense
         from keras.layers import Flatten
@@ -2559,7 +2574,108 @@ class ssccoorriinngg():
         
         return y_pred
 
+    #%% CRNN (CNN+LSTM) classifier
+    def CRNN_classifier(self, X_train, y_train, fs, n_filters = [8, 16, 32], 
+                        kernel_size = [50, 8, 8], LSTM_units = 64, n_LSTM_layers = 4,
+                        recurrent_dropout = .3,loss='mean_squared_error', 
+                        optimizer='adam',metrics = [tf.keras.metrics.Recall()],
+                        epochs = 10, batch_size = 128, verbose = 1,
+                        show_summarize =True, plot_model_graph =True, show_shapes = False):
         
+        "Model that commences with CNN per channel and then apply LSTM." 
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
+        import keras
+        from keras.utils import plot_model
+        from keras.models import Model
+        from keras.layers import Input
+        from keras.layers import Dense
+        from keras.layers.recurrent import LSTM
+        from keras.layers.merge import concatenate
+        from keras.layers.convolutional import Conv1D
+        from keras.layers.pooling import MaxPooling1D
+        from keras.layers import Dropout, BatchNormalization, Activation, TimeDistributed,Flatten, Bidirectional
+
+        # ~~~~~~~~~~~~~~~~~~~~~~~~Defining input data~~~~~~~~~~~~~~~~~~~~~~~~ #
+    
+        # input is 30-s epoch of sleep (samples, timesteps, features])
+        input_sig1 = Input(shape=(30*fs,1))
+                
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Creating CNN model ~~~~~~~~~~~~~~~~~~~~~~~ #
+        
+        ### === Layer 1 === ###
+        
+        # Conv 1
+        conv1 = Conv1D(n_filters[0], kernel_size = kernel_size[0], strides = 1, 
+                        padding='same', kernel_initializer='glorot_uniform')(input_sig1)
+        # Batch normalization 1
+        batch1 = BatchNormalization()(conv1)
+        # Activation 1
+        act1 = Activation('relu')(batch1)
+        # Maxpooling 1
+        maxpooling1 = MaxPooling1D(pool_size=8, strides=1)(act1)
+        
+        ### === Layer 2 === ###
+        
+        # Conv 2
+        conv2 = Conv1D(n_filters[1], kernel_size= kernel_size[1], strides = 1, 
+              padding='same', kernel_initializer='glorot_uniform')(maxpooling1)
+        # Batch normalization 2
+        batch2 = BatchNormalization()(conv2)
+        # Activation 2
+        act2 = Activation('relu')(batch2)
+        # Max-pooling 2
+        maxpooling2 = MaxPooling1D(pool_size=8, strides=1)(act2)
+        
+        ### === Layer 3 === ###
+        
+        # Conv 3
+        conv3 = Conv1D(n_filters[2], kernel_size= kernel_size[2], strides = 1, 
+              padding='same', kernel_initializer='glorot_uniform')(maxpooling2)
+        # Batch normalization 3
+        batch3 = BatchNormalization()(conv3)
+        # Activation 3
+        act3 = Activation('relu')(batch3)
+        # Max-pooling 3
+        maxpooling3 = MaxPooling1D(pool_size=8, strides=1)(act3)
+        
+        # ~~~~~~~~~~~~~~~~~~~~~~~ Creating LSTM model ~~~~~~~~~~~~~~~~~~~~~~~ #
+    
+        # Adding LSTM 1
+        lstm1 = Bidirectional(LSTM(units = LSTM_units, recurrent_dropout= recurrent_dropout, return_sequences=True))(maxpooling3) 
+        # Adding LSTM 2         
+        lstm2 = Bidirectional(LSTM(units = LSTM_units,recurrent_dropout= recurrent_dropout, return_sequences=True))(lstm1)
+        # Adding LSTM 3
+        lstm3 = Bidirectional(LSTM(units = LSTM_units,recurrent_dropout= recurrent_dropout, return_sequences=True))(lstm2)
+        # Adding LSTM 4
+        lstm4 = Bidirectional(LSTM(units = LSTM_units,recurrent_dropout= recurrent_dropout, return_sequences=True))(lstm3)
+        
+        # flattening
+        flattened = Flatten()(lstm4)
+        
+        # Final Dense layer of CNN
+        final = Dense(5, activation = 'softmax')(flattened)
+        
+        # Activates tf variable and cpu/gpu
+        with tf.device('/gpu:0'):
+            model = Model(inputs=[input_sig1], outputs=[final])
+        
+        # compile
+        optimizer = keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9,
+                                          beta_2=0.999, epsilon=1e-08)
+        model.compile(loss=loss, optimizer= optimizer, metrics = metrics)   
+        
+        # plot graph
+        if plot_model_graph ==True:  
+            plot_model(model, show_shapes = show_shapes)
+            
+        # summarize layers
+        if show_summarize ==True:
+            print(model.summary())
+            
+        # Fit and train
+        model.fit(np.transpose(X_train), y_train, epochs=epochs, batch_size=batch_size, verbose=verbose)
+             
+        return model
     #%% DeepSleepNet
     
     def DeepSleepNet_pretraining_classifier(self, X_train, X_test, fs):
@@ -2627,8 +2743,8 @@ class ssccoorriinngg():
         
         # Conv1
         model_sf.add(Conv1D(filters = 64, kernel_size= int(fs*4), use_bias=False, strides = int(fs/2), input_shape=(n_timesteps,n_features)))
-        model_lf.add(BatchNormalization())
-        model_lf.add(Activation("relu"))       
+        model_sf.add(BatchNormalization())
+        model_sf.add(Activation("relu"))       
         
         # Max-pooling 1
         model_sf.add(MaxPooling1D(pool_size = 4, strides = 4))
@@ -2638,18 +2754,18 @@ class ssccoorriinngg():
         
         # Conv2
         model_sf.add(Conv1D(filters = 128, kernel_size= 6, use_bias=False))
-        model_lf.add(BatchNormalization())
-        model_lf.add(Activation("relu")) 
+        model_sf.add(BatchNormalization())
+        model_sf.add(Activation("relu")) 
         
         # Conv3
         model_sf.add(Conv1D(filters = 128, kernel_size= 6, use_bias=False))
-        model_lf.add(BatchNormalization())
-        model_lf.add(Activation("relu"))
+        model_sf.add(BatchNormalization())
+        model_sf.add(Activation("relu"))
         
         # Conv4
         model_sf.add(Conv1D(filters = 128, kernel_size= 6, use_bias=False))
-        model_lf.add(BatchNormalization())
-        model_lf.add(Activation("relu"))
+        model_sf.add(BatchNormalization())
+        model_sf.add(Activation("relu"))
         
         # Max-pooling 2
         model_sf.add(MaxPooling1D(pool_size = 2, strides = 2))
