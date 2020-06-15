@@ -134,15 +134,21 @@ print('Test set was successfully created in : {} secs'.format(time.time()-tic))
 
 print(f'Raw train and test data were created.')
 
-
-model = Object.CRNN_classifier(X_train, y_train, fs = 200, n_filters = [8, 16, 32], 
-                        kernel_size = [50, 8, 8], LSTM_units = 64, n_LSTM_layers = 4,
-                        recurrent_dropout = .3,loss='mean_squared_error', 
+# premodel CRNN
+premodel = Object.CRNN_premodel_classifier(X_train, y_train, fs=200, n_filters = [8, 16, 32], 
+                        kernel_size = [50, 8, 8], loss='mean_squared_error', 
                         optimizer='adam',metrics = [tf.keras.metrics.Recall()],
                         epochs = 10, batch_size = 128, verbose = 1,
                         show_summarize =True, plot_model_graph =True, show_shapes = False)
 
-
+# main model CRNN
+model = Object.CRNN_main_classifier(premodel, X_train, y_train, fs=200, before_flatten_layer=12,
+                            n_filters = [8, 16, 32], 
+                            kernel_size = [50, 8, 8], loss='mean_squared_error', 
+                            LSTM_units = 64, recurrent_dropout = .3,
+                            optimizer='adam',metrics = [tf.keras.metrics.Recall()],
+                            epochs = 10, batch_size = 128, verbose = 1,
+                            show_summarize =True, plot_model_graph =True, show_shapes = False)
 
 
 

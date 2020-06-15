@@ -2574,15 +2574,21 @@ class ssccoorriinngg():
         
         return y_pred
 
-    #%% CRNN (CNN+LSTM) classifier
-    def CRNN_classifier(self, X_train, y_train, fs, n_filters = [8, 16, 32], 
+    #%% (CNN+LSTM) stack classifier
+    def CNN_LSTM_stack_calssifier(self, X_train, y_train, fs, n_filters = [8, 16, 32], 
                         kernel_size = [50, 8, 8], LSTM_units = 64, n_LSTM_layers = 4,
                         recurrent_dropout = .3,loss='mean_squared_error', 
                         optimizer='adam',metrics = [tf.keras.metrics.Recall()],
                         epochs = 10, batch_size = 128, verbose = 1,
                         show_summarize =True, plot_model_graph =True, show_shapes = False):
         
-        "Model that commences with CNN per channel and then apply LSTM." 
+        """ This model has a CNN on top for feature extraction and layers of LSTM 
+        at the bottom to account for time dependency.
+        
+        Please note: The data flow for training is troughout the model and there
+        is no pretraining for CNN. So the CNN weight will be also upodated here
+        after each iteration.
+        """
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
         import keras
         from keras.utils import plot_model
@@ -2637,7 +2643,7 @@ class ssccoorriinngg():
         act3 = Activation('relu')(batch3)
         # Max-pooling 3
         maxpooling3 = MaxPooling1D(pool_size=8, strides=1)(act3)
-        
+            
         # ~~~~~~~~~~~~~~~~~~~~~~~ Creating LSTM model ~~~~~~~~~~~~~~~~~~~~~~~ #
     
         # Adding LSTM 1
@@ -2652,11 +2658,11 @@ class ssccoorriinngg():
         # flattening
         flattened = Flatten()(lstm4)
         
-        # Final Dense layer of CNN
+        # Final Dense layer of CNN + LSTM stack
         final = Dense(5, activation = 'softmax')(flattened)
         
         # Activates tf variable and cpu/gpu
-        with tf.device('/gpu:0'):
+        with tf.device('/cpu:0'):
             model = Model(inputs=[input_sig1], outputs=[final])
         
         # compile
@@ -2676,6 +2682,216 @@ class ssccoorriinngg():
         model.fit(np.transpose(X_train), y_train, epochs=epochs, batch_size=batch_size, verbose=verbose)
              
         return model
+    
+    #%% CRNN classifier (both the premodel and model training comes here)
+    def CRNN_premodel_classifier(self, X_train, y_train, fs, n_filters = [8, 16, 32], 
+                        kernel_size = [50, 8, 8], loss='mean_squared_error', 
+                        optimizer='adam',metrics = [tf.keras.metrics.Recall()],
+                        epochs = 10, batch_size = 128, verbose = 1,
+                        show_summarize =True, plot_model_graph =True, show_shapes = False):
+        
+        """ This is a CNN model which is the premodel of CRNN network. The user have to
+        pretrain this network first and then the subsequent LSTM network 
+        (CRNN_model_classifier) outputs the final classification.
+        
+        Please note: So the CNN weights will be adjusted here and then will be fixed
+        dutring the main training of '(CRNN_model_classifier)'
+        """
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
+        import keras
+        from keras.utils import plot_model
+        from keras.models import Model
+        from keras.layers import Input
+        from keras.layers import Dense
+        from keras.layers.recurrent import LSTM
+        from keras.layers.merge import concatenate
+        from keras.layers.convolutional import Conv1D
+        from keras.layers.pooling import MaxPooling1D
+        from keras.layers import Dropout, BatchNormalization, Activation, TimeDistributed,Flatten, Bidirectional
+
+        # ~~~~~~~~~~~~~~~~~~~~~~~~Defining input data~~~~~~~~~~~~~~~~~~~~~~~~ #
+    
+        # input is 30-s epoch of sleep (samples, timesteps, features])
+        input_sig1 = Input(shape=(30*fs,1))
+                
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Creating CNN model ~~~~~~~~~~~~~~~~~~~~~~~ #
+        
+        ### === Layer 1 === ###
+        
+        # Conv 1
+        conv1 = Conv1D(n_filters[0], kernel_size = kernel_size[0], strides = 1, 
+                        padding='same', kernel_initializer='glorot_uniform')(input_sig1)
+        # Batch normalization 1
+        batch1 = BatchNormalization()(conv1)
+        # Activation 1
+        act1 = Activation('relu')(batch1)
+        # Maxpooling 1
+        maxpooling1 = MaxPooling1D(pool_size=8, strides=1)(act1)
+        
+        ### === Layer 2 === ###
+        
+        # Conv 2
+        conv2 = Conv1D(n_filters[1], kernel_size= kernel_size[1], strides = 1, 
+              padding='same', kernel_initializer='glorot_uniform')(maxpooling1)
+        # Batch normalization 2
+        batch2 = BatchNormalization()(conv2)
+        # Activation 2
+        act2 = Activation('relu')(batch2)
+        # Max-pooling 2
+        maxpooling2 = MaxPooling1D(pool_size=8, strides=1)(act2)
+        
+        ### === Layer 3 === ###
+        
+        # Conv 3
+        conv3 = Conv1D(n_filters[2], kernel_size= kernel_size[2], strides = 1, 
+              padding='same', kernel_initializer='glorot_uniform')(maxpooling2)
+        # Batch normalization 3
+        batch3 = BatchNormalization()(conv3)
+        # Activation 3
+        act3 = Activation('relu')(batch3)
+        # Max-pooling 3
+        maxpooling3 = MaxPooling1D(pool_size=8, strides=1)(act3) 
+        
+        # flattening
+        flattened = Flatten()(maxpooling3)
+        
+        # Final Dense layer of CNN
+        final_premodel = Dense(5, activation = 'softmax')(flattened)
+        
+        # Activates tf variable and cpu/gpu
+        with tf.device('/cpu:0'):
+            premodel = Model(inputs=[input_sig1], outputs=[final_premodel])
+        
+        # compile
+        optimizer = keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9,
+                                          beta_2=0.999, epsilon=1e-08)
+        premodel.compile(loss=loss, optimizer= optimizer, metrics = metrics)   
+        
+        # plot graph
+        if plot_model_graph ==True:  
+            plot_model(premodel, show_shapes = True)
+            
+        # summarize layers
+        if show_summarize ==True:
+            print(premodel.summary())
+            
+        # Fit and train
+        premodel.fit(np.transpose(X_train), y_train, epochs=epochs, batch_size=batch_size, verbose=verbose)
+             
+        return premodel
+    
+    #### ====================== Main CRNN model ======================== ###### 
+    # CRNN classifier
+    def CRNN_main_classifier(self, premodel, X_train, y_train, fs, before_flatten_layer,
+                            loss='mean_squared_error', 
+                            LSTM_units = 64, recurrent_dropout = .3,
+                            optimizer='adam',metrics = [tf.keras.metrics.Recall()],
+                            epochs = 10, batch_size = 128, verbose = 1,
+                            show_summarize =True, plot_model_graph =True, show_shapes = False):
+        
+        """ This is the LSTM model which is the final section of CRNN network.
+        
+        Please note: So the CNN weights will be adjusted here and then will be fixed
+        dutring the main training of '(CRNN_model_classifier)'
+        """
+        # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
+        import keras
+        from keras.utils import plot_model
+        from keras.models import Model
+        from keras.layers import Input, Reshape
+        from keras.layers import Dense
+        from keras.layers.recurrent import LSTM
+        from keras.layers.merge import concatenate
+        from keras.layers.convolutional import Conv1D
+        from keras.layers.pooling import MaxPooling1D
+        from keras.layers import Dropout, BatchNormalization, Activation, TimeDistributed,Flatten, Bidirectional
+
+        # ~~~~~~~~ Take tha last layer before Flattening of base model~~~~~~~ #
+        # i is the index of the layer from which you want to take the model output
+        before_flatten = premodel.layers[before_flatten_layer].output 
+        
+        # Reshape and preparation for LSTM
+        conv2lstm_reshape = Reshape((-1, 2))(before_flatten)
+        
+        # Deactivate training of pre-trained model (CNN)
+        premodel.trainable = False
+
+        # ~~~~~~~~~~~~~~~~~~~~~~~ Creating LSTM model ~~~~~~~~~~~~~~~~~~~~~~~ #
+    
+        # Adding LSTM 1
+        lstm1 = Bidirectional(LSTM(units = LSTM_units, recurrent_dropout= recurrent_dropout, return_sequences=True))(conv2lstm_reshape) 
+        # Adding LSTM 2         
+        lstm2 = Bidirectional(LSTM(units = LSTM_units,recurrent_dropout= recurrent_dropout, return_sequences=True))(lstm1)
+        # Adding LSTM 3
+        lstm3 = Bidirectional(LSTM(units = LSTM_units,recurrent_dropout= recurrent_dropout, return_sequences=True))(lstm2)
+        # Adding LSTM 4
+        lstm4 = Bidirectional(LSTM(units = LSTM_units,recurrent_dropout= recurrent_dropout, return_sequences=True))(lstm3)
+        
+        # flattening
+        flattened = Flatten()(lstm4)
+        
+        # Final Dense layer of CNN + LSTM stack
+        final = Dense(5, activation = 'softmax')(flattened)
+        
+        # Activates tf variable and cpu/gpu
+        with tf.device('/cpu:0'):
+            model = Model(inputs=[premodel.input], outputs=[final])
+        
+        # compile
+        optimizer = keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9,
+                                          beta_2=0.999, epsilon=1e-08)
+        model.compile(loss=loss, optimizer= optimizer, metrics = metrics)   
+        
+        # plot graph
+        if plot_model_graph ==True:  
+            plot_model(model, show_shapes = show_shapes)
+            
+        # summarize layers
+        if show_summarize ==True:
+            print(model.summary())
+            
+        # Fit and train
+        #model.fit(np.transpose(X_train), y_train, epochs=epochs, batch_size=batch_size, verbose=verbose)
+             
+        return model
+    #### ==================== RUN full CRNN model ====================== ###### 
+    def run_CRNN_model(self,  X_train, y_train, before_flatten_layer = 12, fs=200, n_filters = [8, 16, 32], 
+                        kernel_size = [50, 8, 8], loss='mean_squared_error', 
+                        LSTM_units = 64, recurrent_dropout = .3,
+                        optimizer='adam',metrics = [tf.keras.metrics.Recall()],
+                        epochs = 10, batch_size = 128, verbose = 1,
+                        show_summarize =True, plot_model_graph =True, show_shapes = False):
+        
+        # Premodel definition (CNN)
+        self.premodel = self.CRNN_premodel_classifier(self, X_train, y_train, fs=fs, n_filters = n_filters, 
+                        kernel_size = kernel_size, loss=loss, 
+                        optimizer=optimizer,metrics = metrics,
+                        epochs = epochs, batch_size = batch_size, verbose = verbose,
+                        show_summarize =show_summarize, plot_model_graph =plot_model_graph,
+                        show_shapes = show_shapes)
+
+        # main model CRNN (LSTM)
+        model = self.CRNN_main_classifier(self, self.premodel, X_train, y_train, fs, 
+                                          before_flatten_layer=before_flatten_layer,
+                                          loss=loss, LSTM_units = LSTM_units, recurrent_dropout = recurrent_dropout,
+                                          optimizer=optimizer,metrics =metrics,
+                                          epochs = epochs, batch_size = batch_size, verbose = verbose,
+                                          show_summarize =show_summarize, 
+                                          plot_model_graph =plot_model_graph, 
+                                          show_shapes = show_shapes)
+        
+        # return final trained model
+        return model
+    
+    #%% Plot deep neural networks model
+    def plot_models(self, model, show_shapes = True):
+     
+        from keras.utils import plot_model
+        plot_model(model, show_shapes = show_shapes)
+        
+    #%% Show summary of  deep neural networks
+    def summary_models(self, model):
+          print(model.summary())
     #%% DeepSleepNet
     
     def DeepSleepNet_pretraining_classifier(self, X_train, X_test, fs):
