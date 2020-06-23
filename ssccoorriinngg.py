@@ -916,14 +916,6 @@ class ssccoorriinngg():
         
         # Flattening Acc-Norm
         AccNorm = AccNorm.flatten()
-        
-        #####============ Cut tail; use modulo to find full epochs ===============#####
-        
-        # Define length of epochs
-        self.len_epoch   = self.fs * self.T
-        
-        # Cut remaining tail from the last epoch
-        AccNorm = AccNorm[0:AccNorm.shape[0] - AccNorm.shape[0]%self.len_epoch]
 # =============================================================================
 #         x_acc   = x_acc[0:x_acc.shape[0] - x_acc.shape[0]%self.len_epoch]
 #         y_acc   = y_acc[0:y_acc.shape[0] - y_acc.shape[0]%self.len_epoch]
@@ -1030,6 +1022,8 @@ class ssccoorriinngg():
                    WL, num_ZC, MAV, SSI, rms]
             
             Features = np.row_stack((Features,feat))
+            
+        return Features
         #%% Normalizing features
     
     def SaveFeatureSet(self, X, y, path, filename):
@@ -1517,21 +1511,41 @@ class ssccoorriinngg():
         return out_feats, out_labels
     
     #%% remove channels without scoring
-    def remove_channels_without_scoring(self, hypno_labels, input_feats):
+    def remove_channels_without_scoring(self, hypno_labels, input_feats, Feats_Acc, Acc_feats = False):
         
         bad        = [i for i,j in enumerate(hypno_labels[:,0]) if (j==-1)]
         out_feats  = np.delete(input_feats, bad, axis=2)
         out_labels = np.delete(hypno_labels, bad, axis=0)
+        if Acc_feats == True:
+            out_acc_feats = np.delete(Feats_Acc, bad, axis=0)
+            return out_feats, out_labels, out_acc_feats
+        else:
+            return out_feats, out_labels
+    
+    #%% remove channels without scoring
+    def remove_channels_without_scoring2(self, hypno_labels, input_feats, Feats_Acc, Acc_feats = False):
         
-        return out_feats, out_labels
+        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if (j==6)]
+        out_feats  = np.delete(input_feats, bad, axis=2)
+        out_labels = np.delete(hypno_labels, bad, axis=0)
+        if Acc_feats == True:
+            out_acc_feats = np.delete(Feats_Acc, bad, axis=0)
+            return out_feats, out_labels, out_acc_feats
+        else:
+            return out_feats, out_labels
     #%% Remove disconnections:
-    def remove_disconnection(self, hypno_labels, input_feats):
+    def remove_disconnection(self, hypno_labels, input_feats, Feats_Acc, Acc_feats = False):
         
         bad        = [i for i,j in enumerate(hypno_labels[:,0]) if (j==8)]
         out_feats  = np.delete(input_feats, bad, axis=2)
         out_labels = np.delete(hypno_labels, bad, axis=0)
         
-        return out_feats, out_labels
+        if Acc_feats == True:
+            out_acc_feats = np.delete(Feats_Acc, bad, axis=0)
+            return out_feats, out_labels, out_acc_feats
+        
+        else:
+            return out_feats, out_labels
     #%% Detect and remove arousal and wake: useful for classifying only sleep stages
     def remove_arousals(self, hypno_labels, input_feats):
         bad        = [i for i,j in enumerate(hypno_labels[:,0]) if ((hypno_labels[i,1]==1) or (hypno_labels[i,1]==2))]
@@ -1610,7 +1624,7 @@ class ssccoorriinngg():
             cmap = plt.get_cmap('Blues')
     
         plt.figure(figsize=(8, 6))
-        plt.imshow(cm, interpolation='nearest', cmap='jet')
+        plt.imshow(cm, interpolation='nearest')
         plt.title(title)
         plt.colorbar()
     
@@ -1699,7 +1713,7 @@ class ssccoorriinngg():
             else:
                 Unlabeled = Unlabeled + 1
         if Unlabeled!= 0:
-            raise ValueError("Some of the rows do not have a label!!!")
+            raise ValueError(f"Some of the rows do not have a label!!!")
                 
         print(f'Total of {Unlabeled} unlabeled rows were found.')
     #%% Save the feature-label pair as a pickle file
@@ -1788,7 +1802,7 @@ class ssccoorriinngg():
         x.append(i)
         
 
-        #plt.figure(figsize = [20,14])
+        plt.figure(figsize = [20,14])
         plt.step(x, y, where='post')
         plt.yticks([0,-1,-2,-3,-4], ['Wake','REM', 'N1', 'N2', 'SWS'])
         plt.ylabel('Sleep Stage')
@@ -2359,6 +2373,14 @@ class ssccoorriinngg():
         Acc_X   = Acc_X.get_data()
         Acc_Y   = Acc_Y.get_data()
         Acc_Z   = Acc_Z.get_data()
+                
+        # Define length of epochs
+        self.len_epoch   = self.fs * self.T
+        
+        # Cut remaining tail from the last epoch; use modulo to find full epochs 
+        Acc_X = Acc_X[:, 0:Acc_X.shape[1] - Acc_X.shape[1]%self.len_epoch]
+        Acc_Y = Acc_Y[:, 0:Acc_Y.shape[1] - Acc_Y.shape[1]%self.len_epoch]
+        Acc_Z = Acc_Z[:, 0:Acc_Z.shape[1] - Acc_Z.shape[1]%self.len_epoch]
         
         # Acc data in an array format
         Acc     = [Acc_X, Acc_Y, Acc_Z]
@@ -2373,7 +2395,7 @@ class ssccoorriinngg():
         for i in np.arange(0,N):
             
             AccNorm[0,i] = np.sqrt(Acc_X[0,i]**2 + Acc_Y[0,i]**2 + Acc_Z[0,i]**2 )
-            
+        
         # Calculate mean of Acc
         MeanAcc        = np.mean(AccNorm)
         
