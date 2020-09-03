@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on 29/03/2020 
+Copyright (C) 2020, Mahdad Jafarzadeh
 
-@author: Mahdad Jafarzadeh
-
-THIS IS THE CLASS FOR "AUTOMATIC SLEEP SCORING" project. 
+THIS IS THE CLASS FOR "AUTOMATIC SLEEP SCORING". 
 
 The class is capable of extracting relevant features, applying various machine-
 learning algorithms and finally applying Randomized grid search to tune hyper-
