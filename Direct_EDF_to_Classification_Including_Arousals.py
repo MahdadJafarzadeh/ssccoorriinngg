@@ -55,184 +55,186 @@ for indx, c in enumerate(gp):
 
 Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
 
-# =============================================================================
-#  #Initialization
-# subjects_dic     = {}
-# hyp_dic          = {}
-# metrics_per_fold = {}
-# raw_data_dic     = {}
-# tic_tot = time.time()
-# 
-# # Igonre unnecessary warnings
-# np.seterr(divide='ignore', invalid='ignore')
-# 
-# #####============= Iterate through each subject to find data =============#####
-# 
-# for idx, c_subj in enumerate(subj_c):
-# 
-#         
-#     print (f'Analyzing Subject Number: {c_subj}')
-#     ## Read in data
-#     file     = project_folder+"3013080.02/ml_project/data/LK_" + str(int(c_subj)) + "_1.EDF"
-#     tic      = time.time()
-#     data     = mne.io.read_raw_edf(file)
-#     # Data raw EEG --> Deactive
-#     # data.plot(duration = 30, highpass = .3 , lowpass = 25 )
-#     raw_data = data.get_data()
-#     print('Time to read EDF: {}'.format(time.time()-tic))
-#     
-# #####=================Retrieving information from data====================#####
-#     
-#     DataInfo          = data.info
-#     AvailableChannels = DataInfo['ch_names']
-#     fs                = int(DataInfo['sfreq'])
-#     
-# #####==================Choosing channels of interest======================#####
-#     
-#     # 1. The channels that need to be referenced
-#     Mastoids          = ['Fp2'] # Reference electrodes
-#     RequiredChannels  = ['Fp1'] # main electrodes
-#     
-#     # 2. Channels that don't need to be referenced: --> Deactive
-#    
-#     Idx               = []
-#     Idx_Mastoids      = []
-#     
-# #####================= Find index of required channels ===================#####
-#     
-#     for indx, c in enumerate(AvailableChannels):
-#         if c in RequiredChannels:
-#             Idx.append(indx)
-#         elif c in Mastoids:
-#             Idx_Mastoids.append(indx)
-# 
-# #####===== Sampling rate is 200hz; thus 1 epoch(30s) is 6000 samples =====#####
-#             
-#     T = 30 #secs
-#     len_epoch   = fs * T
-#     start_epoch = 0
-#     n_channels  =  len(AvailableChannels)
-#        
-# #####============ Cut tail; use modulo to find full epochs ===============#####
-# 
-#     raw_data = raw_data[:, 0:raw_data.shape[1] - raw_data.shape[1]%len_epoch]
-#     
-# #####========== Reshape data [n_channel, len_epoch, n_epochs] ============#####
-#     data_epoched = np.reshape(raw_data,
-#                               (n_channels, len_epoch,
-#                                int(raw_data.shape[1]/len_epoch)), order='F' )
-#     
-# #####===================== Reading hypnogram data ========================#####
-# 
-#     hyp = loadtxt(project_folder + "3013065.04/Depressed_Loreta/hypnograms/LK_" + 
-#                 str(int(c_subj)) + ".txt", delimiter="\t")
-#     
-#     ### Create sepereate data subfiles based on hypnogram (N1, N2, N3, NREM, REM) 
-#     tic      = time.time()
-#     
-# #####================= Concatenation of selected channels ================#####   
-# 
-#     # Calculate referenced channels: 
-#     data_epoched_selected = data_epoched[Idx] - data_epoched[Idx_Mastoids]
-#     
-# #####================= Find order of the selected channels ===============#####  
-#  
-#     #Init
-#     picked_channels = []
-#     picked_refs     = []
-#     List_Channels   = []
-#     
-#     # Find main channels
-#     for jj,kk in enumerate(Idx):
-#         picked_channels = np.append(picked_channels, AvailableChannels[kk])
-#         
-#     # Find references
-#     for jj,kk in enumerate(Idx_Mastoids):
-#         picked_refs     = np.append(picked_refs, AvailableChannels[kk])
-#     print(f'subject LK {c_subj} --> detected channels: {str(picked_channels)} -  {str(picked_refs)}')
-#     
-#     # Create lis of channels
-#     for kk in np.arange(0, len(Idx)):
-#         List_Channels = np.append(List_Channels, picked_channels[kk] + '-' + picked_refs[kk])
-#     
-#     #%% Analysis section
-# #####================= remove chanbnels without scroing ==================#####   
-#     
-#     # assign the proper data and labels
-#     x_tmp_init = data_epoched_selected
-#     y_tmp_init = hyp
-#     
-#     # Ensure equalituy of length for arrays:
-#     Object.Ensure_data_label_length(x_tmp_init, y_tmp_init)
-#     
-#     # Remove non-scored epochs
-#     x_tmp, y_tmp =  Object.remove_channels_without_scoring(hypno_labels = y_tmp_init,
-#                                               input_feats = x_tmp_init)
-#     
-#     # Remove disconnections
-#     x_tmp, y_tmp =  Object.remove_disconnection(hypno_labels= y_tmp, 
-#                                                 input_feats=x_tmp) 
-#     
-# #####============= Create a one hot encoding form of labels ==============##### 
-# 
-#     # Create binary labels array
-#     yy = Object.One_hot_encoding(y_tmp)     
-#     
-#     # Ensure all the input labels have a class
-#     Object.Unlabaled_rows_detector(yy)
-#     
-#     # Initialize feature array:
-#     Feat_all_channels = np.empty((np.shape(x_tmp)[-1],0))
-#       
-# #####================== Extract the relevant features ====================#####    
-#     print(f'Extracting features of subject {c_subj} ....')
-#     
-#     for k in np.arange(np.shape(data_epoched_selected)[0]):
-#         
-#         feat_temp         = Object.FeatureExtraction_per_subject(Input_data = x_tmp[k,:,:])
-#         Feat_all_channels = np.column_stack((Feat_all_channels,feat_temp))
-#         
-#     toc = time.time()
-#     print(f'Features of subject {c_subj} were successfully extracted in: {toc-tic} secs')
-#     
-#     # Double check the equality of size of arrays
-#     Object.Ensure_feature_label_length(Feat_all_channels, yy)
-#     
-#     # Defining dictionary to save features PER SUBJECT
-#     subjects_dic["subject{}".format(c_subj)] = Feat_all_channels
-#     
-#     # Defining dictionary to save hypnogram PER SUBJECT
-#     hyp_dic["hyp{}".format(c_subj)] = yy
-#     
-#     # Defining dictionary to save EEG raw data PER SUBJECT
-#     raw_data_dic["subject{}".format(c_subj)] = x_tmp
-#     
-#     
-# #####=============== Removing variables for next iteration ===============#####      
-#     del x_tmp, y_tmp, feat_temp, yy
-#     toc = time.time()
-#     
-#     print('Feature extraction of subject {c_subj} has been finished.')   
-# 
-# print('Total feature extraction of subjects took {tic_tot - time.time()} secs.')
-# #%% Save created features and labels
-# 
-# #####====================== Save extracted features ======================#####      
-# 
-# path     = project_folder +"3013080.02/ml_project/features/"
-# 
-# filename = 'sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored'
-# Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
-# 
-# #####====================== Save raw data as pickle ======================#####      
-# 
-# path     = project_folder + "features/"
-# 
-# filename = 'sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored_RawData'
-# Object.save_dictionary(path, filename, hyp_dic, raw_data_dic)
-# 
-# 
-# =============================================================================
+ #Initialization
+subjects_dic     = {}
+hyp_dic          = {}
+metrics_per_fold = {}
+raw_data_dic     = {}
+tic_tot = time.time()
+
+# Igonre unnecessary warnings
+np.seterr(divide='ignore', invalid='ignore')
+
+#####============= Iterate through each subject to find data =============#####
+
+for idx, c_subj in enumerate(subj_c):
+
+        
+    print (f'Analyzing Subject Number: {c_subj}')
+    ## Read in data
+    file     = project_folder+"3013080.02/ml_project/data/LK_" + str(int(c_subj)) + "_1.EDF"
+    tic      = time.time()
+    data     = mne.io.read_raw_edf(file)
+    # Data raw EEG --> Deactive
+    # data.plot(duration = 30, highpass = .3 , lowpass = 25 )
+    raw_data = data.get_data()
+    print('Time to read EDF: {}'.format(time.time()-tic))
+    
+#####=================Retrieving information from data====================#####
+    
+    DataInfo          = data.info
+    AvailableChannels = DataInfo['ch_names']
+    fs                = int(DataInfo['sfreq'])
+    
+#####==================Choosing channels of interest======================#####
+    
+    # 1. The channels that need to be referenced
+    References          = ['Fp2'] # Reference electrode(s)
+    RequiredChannels    = ['Fp1'] # main electrode(s)
+    
+    # 2. Channels that don't need to be referenced: --> Deactive
+   
+    Idx               = []
+    Idx_Mastoids      = []
+    
+#####================= Find index of required channels ===================#####
+    
+    # Find index of required channels     
+    for indx, c in enumerate(RequiredChannels):
+        if c in AvailableChannels:
+            Idx.append(AvailableChannels.index(c))
+            
+    # Find index of refernces (e.g. Mastoids) 
+    for indx, c in enumerate(References):
+        if c in AvailableChannels:
+            Idx_Mastoids.append(AvailableChannels.index(c))
+
+#####===== Sampling rate is 200hz; thus 1 epoch(30s) is 6000 samples =====#####
+            
+    T = 30 #secs
+    len_epoch   = fs * T
+    start_epoch = 0
+    n_channels  =  len(AvailableChannels)
+       
+#####============ Cut tail; use modulo to find full epochs ===============#####
+
+    raw_data = raw_data[:, 0:raw_data.shape[1] - raw_data.shape[1]%len_epoch]
+    
+#####========== Reshape data [n_channel, len_epoch, n_epochs] ============#####
+    data_epoched = np.reshape(raw_data,
+                              (n_channels, len_epoch,
+                               int(raw_data.shape[1]/len_epoch)), order='F' )
+    
+#####===================== Reading hypnogram data ========================#####
+
+    hyp = loadtxt(project_folder + "3013065.04/Depressed_Loreta/hypnograms/LK_" + 
+                str(int(c_subj)) + ".txt", delimiter="\t")
+    
+    ### Create sepereate data subfiles based on hypnogram (N1, N2, N3, NREM, REM) 
+    tic      = time.time()
+    
+#####================= Concatenation of selected channels ================#####   
+
+    # Calculate referenced channels: 
+    data_epoched_selected = data_epoched[Idx] - data_epoched[Idx_Mastoids]
+    
+#####================= Find order of the selected channels ===============#####  
+ 
+    #Init
+    picked_channels = []
+    picked_refs     = []
+    List_Channels   = []
+    
+    # Find main channels
+    for jj,kk in enumerate(Idx):
+        picked_channels = np.append(picked_channels, AvailableChannels[kk])
+        
+    # Find references
+    for jj,kk in enumerate(Idx_Mastoids):
+        picked_refs     = np.append(picked_refs, AvailableChannels[kk])
+    print(f'subject LK {c_subj} --> detected channels: {str(picked_channels)} -  {str(picked_refs)}')
+    
+    # Create lis of channels
+    for kk in np.arange(0, len(Idx)):
+        List_Channels = np.append(List_Channels, picked_channels[kk] + '-' + picked_refs[kk])
+    
+    #%% Analysis section
+#####================= remove chanbnels without scroing ==================#####   
+    
+    # assign the proper data and labels
+    x_tmp_init = data_epoched_selected
+    y_tmp_init = hyp
+    
+    # Ensure equalituy of length for arrays:
+    Object.Ensure_data_label_length(x_tmp_init, y_tmp_init)
+    
+    # Remove non-scored epochs
+    x_tmp, y_tmp =  Object.remove_channels_without_scoring(hypno_labels = y_tmp_init,
+                                              input_feats = x_tmp_init)
+    
+    # Remove disconnections
+    x_tmp, y_tmp =  Object.remove_disconnection(hypno_labels= y_tmp, 
+                                                input_feats=x_tmp) 
+    
+#####============= Create a one hot encoding form of labels ==============##### 
+
+    # Create binary labels array
+    yy = Object.One_hot_encoding(y_tmp)     
+    
+    # Ensure all the input labels have a class
+    Object.Unlabaled_rows_detector(yy)
+    
+    # Initialize feature array:
+    Feat_all_channels = np.empty((np.shape(x_tmp)[-1],0))
+      
+#####================== Extract the relevant features ====================#####    
+    print(f'Extracting features of subject {c_subj} ....')
+    
+    for k in np.arange(np.shape(data_epoched_selected)[0]):
+        
+        feat_temp         = Object.FeatureExtraction_per_subject(Input_data = x_tmp[k,:,:])
+        Feat_all_channels = np.column_stack((Feat_all_channels,feat_temp))
+        
+    toc = time.time()
+    print(f'Features of subject {c_subj} were successfully extracted in: {toc-tic} secs')
+    
+    # Double check the equality of size of arrays
+    Object.Ensure_feature_label_length(Feat_all_channels, yy)
+    
+    # Defining dictionary to save features PER SUBJECT
+    subjects_dic["subject{}".format(c_subj)] = Feat_all_channels
+    
+    # Defining dictionary to save hypnogram PER SUBJECT
+    hyp_dic["hyp{}".format(c_subj)] = yy
+    
+    # Defining dictionary to save EEG raw data PER SUBJECT
+    raw_data_dic["subject{}".format(c_subj)] = x_tmp
+    
+    
+#####=============== Removing variables for next iteration ===============#####      
+    del x_tmp, y_tmp, feat_temp, yy
+    toc = time.time()
+    
+    print('Feature extraction of subject {c_subj} has been finished.')   
+
+print('Total feature extraction of subjects took {tic_tot - time.time()} secs.')
+#%% Save created features and labels
+
+#####====================== Save extracted features ======================#####      
+
+path     = project_folder +"3013080.02/ml_project/features/"
+
+filename = 'sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored'
+Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
+
+#####====================== Save raw data as pickle ======================#####      
+
+path     = project_folder + "features/"
+
+filename = 'sleep_scoring_Fp1-Fp2_030620_IncludeContaminatedStagesWithArtefact_ExcludeBadsignal&Unscored_RawData'
+Object.save_dictionary(path, filename, hyp_dic, raw_data_dic)
+
+
 
 #%% Load featureset and labels
 

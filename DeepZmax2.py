@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Created on Tue Sep 22 17:14:59 2020
+
+@author: mahda
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Sat Jun  6 22:41:54 2020
 
 @author: mahjaf
@@ -33,7 +40,7 @@ Hypnogram_folder  = Main_path + "somno_scorings/Rathiga/"
 
 #####===================== Reading EDF data files=========================#####
 
-subject_ids = loadtxt(subject_Id_folder+"Subject_ids_excluding 22_2.txt", dtype = 'str',delimiter='\n')
+subject_ids   = loadtxt(subject_Id_folder+"Subject_ids_excluding 22_2.txt", dtype = 'str',delimiter='\n')
 
 #####============= create an object of ssccoorriinngg class ==============#####
 
@@ -42,7 +49,7 @@ Object = ssccoorriinngg(filename='', channel='', fs = 256, T = 30)
 #%% Load featureset and labels
 
 path     = subject_Id_folder
-filename              =  "Zmax_Rathiga_scorings_ch-ch2+AccFeats_190620"
+filename              =  "Zmax_Rathiga_scorings_RawData_ch1-ch2+AccFeats_190620"
 subjects_dic, hyp_dic = Object.load_dictionary(path, filename)
   
 #%% ================================Training part==============================
@@ -58,15 +65,23 @@ subject_ids = np.random.RandomState(seed=0).permutation(subject_ids)
 #######=============== Initialize train and test arrays ================#######
 sample_subject = "subjectP_12_night1_scoring.csv.spisop.new - Copy"
 sample_hyp     = "hypP_12_night1_scoring.csv.spisop.new - Copy" 
-X_train = np.empty((0, np.shape(subjects_dic[sample_subject])[1]))
-X_test  = np.empty((0, np.shape(subjects_dic[sample_subject])[1]))
+X_train = np.empty((1, np.shape(subjects_dic[sample_subject])[1], 0))
+X_test  = np.empty((1, np.shape(subjects_dic[sample_subject])[1], 0))
 y_train = np.empty((0, np.shape(hyp_dic[sample_hyp])[1]))
 y_test  = np.empty((0, np.shape(hyp_dic[sample_hyp])[1]))
 
 ########======= Picking the train subjetcs and concatenate them =======########
 tic = time.time()
-train_subjects_list = []
-for c_subj in subject_ids[0:n_train]:
+train_subjects_list =  ["P_12_night1_scoring.csv.spisop.new - Copy",
+                        "P_13_night2_scoring.csv.spisop.new - Copy",
+                        "P_15_night2_scoring.csv.spisop.new - Copy",
+                        "P_16_night1_scoring.csv.spisop.new - Copy",
+                        "P_18_night1_scoring.csv.spisop.new - Copy",
+                        "P_20_night1_scoring.csv.spisop.new - Copy",
+                        "P_21_night1_scoring.csv.spisop.new - Copy",
+                        "P_23_night1_scoring.csv.spisop.new - Copy"]
+
+for c_subj in train_subjects_list:
     
     # train hypnogram
     str_train_hyp  = 'hyp' + str(c_subj)
@@ -79,21 +94,32 @@ for c_subj in subject_ids[0:n_train]:
     tmp_y          =  hyp_dic[str_train_hyp]
     
     # Concatenate features and labels
-    X_train = np.row_stack((X_train, tmp_x))
+    X_train = np.concatenate((X_train, tmp_x), axis = 2)
     y_train = np.row_stack((y_train, tmp_y))
     
-    # Keep the train subject
-    train_subjects_list.append(str_train_feat)
     del tmp_x, tmp_y
     
 print('Training set was successfully created in : {} secs'.format(time.time()-tic))
 
-#%% ================================Test part==============================%%#
+ #%% ================================Test part==============================%%#
 
 ########======== Picking the test subjetcs and concatenate them =======########
 tic                = time.time()
 test_subjects_list = []
-for c_subj in subject_ids[n_train:]:
+tst_subj_list = ["P_12_night2_scoring.csv.spisop.new - Copy",
+                "P_12_night3_scoring.csv.spisop.new - Copy",
+                "P_13_night3_scoring.csv.spisop.new - Copy",
+                "P_14_night3_scoring.csv.spisop.new - Copy",
+                "P_15_night3_scoring.csv.spisop.new - Copy",
+                "P_16_night3_scoring.csv.spisop.new - Copy",
+                "P_18_night2_scoring.csv.spisop.new - Copy",
+                "P_18_night3_scoring.csv.spisop.new - Copy",
+                "P_20_night2_scoring.csv.spisop.new - Copy",
+                "P_20_night3_scoring.csv.spisop.new - Copy",
+                "P_21_night2_scoring.csv.spisop.new - Copy",
+                "P_21_night3_scoring.csv.spisop.new - Copy"]
+
+for c_subj in tst_subj_list:
    
     # test hypnogram
     str_test_hyp  = 'hyp' + str(c_subj)
@@ -106,7 +132,7 @@ for c_subj in subject_ids[n_train:]:
     tmp_y         =  hyp_dic[str_test_hyp]
     
     # Concatenate features and labels
-    X_test = np.row_stack((X_test, tmp_x))
+    X_test = np.concatenate((X_test, tmp_x), axis = 2)
     y_test = np.row_stack((y_test, tmp_y))
     
     # keep the subject id
@@ -120,69 +146,49 @@ print('Test set was successfully created in : {} secs'.format(time.time()-tic))
 print(f'Raw train and test data were created.')
 
 ########================== Replace any probable NaN ===================########
-
-X_train = Object.replace_NaN_with_mean(X_train)
-X_test  = Object.replace_NaN_with_mean(X_test)
-
-########================== Replace any probable inf ===================########
-
-X_train = Object.replace_inf_with_mean(X_train)
-X_test  = Object.replace_inf_with_mean(X_test)
+# =============================================================================
+# 
+# X_train = Object.replace_NaN_with_mean(X_train)
+# X_test  = Object.replace_NaN_with_mean(X_test)
+# 
+# ########================== Replace any probable inf ===================########
+# 
+# X_train = Object.replace_inf_with_mean(X_train)
+# X_test  = Object.replace_inf_with_mean(X_test)
+# =============================================================================
 
 ########==================== Z-score of features ======================########
 
-X_train, X_test = Object.Standardadize_features(X_train, X_test)
-
-########========== select features only on first iteration ============########
-
-td = 5 # Time dependence: number of epochs of memory
-
-X_train_td = Object.add_time_dependence_backward(X_train, n_time_dependence=td,
-                                                    padding_type = 'sequential')
-
-X_test_td  = Object.add_time_dependence_backward(X_test,  n_time_dependence=td,
-                                                    padding_type = 'sequential')
+#X_train, X_test = Object.Standardadize_features(X_train, X_test)
 
 ########====================== Feature Selection ======================########
 
 y_train_td = Object.binary_to_single_column_label(y_train)
 
-########========== select features only on first iteration ============########
 
-# =============================================================================
-# ranks, Feat_selected, selected_feats_ind = Object.FeatSelect_Boruta(X_train_td,
-#                                                     y_train_td[:,0], max_iter = 50, max_depth = 7)
-# 
-# #######===================== Save selected feats =======================#######
-# 
-# path     = "P:/3013080.01/Autoscoring/features/"
-# filename              = "Selected_Features_BoturaNoTimeDependency_5_Backward_Zmax_ch1-ch2+Acc_200620"
-# with open(path+filename+'.pickle',"wb") as f:
-#     pickle.dump(selected_feats_ind, f)
-# =============================================================================
-     
-########################### Load selected feats ###############################
-
-path     = subject_Id_folder
-filename              = "Selected_Features_BoturaAfterTD=5_Backward_Zmax_ch1-ch2+Acc_200620"
-#filename              = "sleep_scoring_NoArousal_8channels_selected_feats_NEW"
-with open(path + filename + '.pickle', "rb") as f: 
-    selected_feats_ind = pickle.load(f)
-    
-########=================== Apply selected features ===================########
-
-X_train = X_train_td[:, selected_feats_ind]
-X_test  = X_test_td[:, selected_feats_ind]
+##### CNN 1 
+model = Object.CNN_LSTM_stack_calssifier(X_train, y_train, fs=256, n_filters = [8, 16, 32], 
+                        kernel_size = [50, 8, 8], LSTM_units = 64, n_LSTM_layers = 4,
+                        recurrent_dropout = .3,loss='mean_squared_error', 
+                        optimizer='adam',metrics = ['accuracy'],
+                        epochs = 10, batch_size = 128, verbose = 1,
+                        show_summarize =True, show_shapes = False)
 
 ########============== Define classifier of interest ==================########
-y_pred = Object.XGB_Modelling(X_train, y_train,X_test, y_test, n_estimators = 500)
-y_pred = Object.KernelSVM_Modelling(X_train, y_train,X_test, y_test, kernel='rbf')
-y_pred = Object.ANN_classifier(X_train, y_train, X_test, units_h1=600, units_h2 = 300, units_output = 5,
-                              activation_out = 'softmax',
-                              init = 'uniform', activation = 'relu', optimizer = 'adam',
-                              loss = 'categorical_crossentropy', metrics=[tf.keras.metrics.Recall()],
-                              h3_status = 'deactive', units_h3 = 50, epochs = 100, batch_size = 100)
+premodel = Object.CRNN_premodel_classifier( X_train, y_train, fs=256, n_filters = [8, 16, 32], 
+                        kernel_size = [50, 8, 8], loss='mean_squared_error', 
+                        optimizer='adam',metrics = [tf.keras.metrics.Recall()],
+                        epochs = 50, batch_size = 128, verbose = 1,
+                        show_summarize =True, plot_model_graph =True, show_shapes = False)
 
+main_model = Object.CRNN_main_classifier(premodel, X_train, y_train, fs=256, before_flatten_layer=12,
+                            loss='mean_squared_error', 
+                            LSTM_units = 64, recurrent_dropout = .3,
+                            optimizer='adam',metrics = [tf.keras.metrics.Recall()],
+                            epochs = 5, batch_size = 256, verbose = 1,
+                            show_summarize =True, plot_model_graph =True, show_shapes = False)
+
+main_model.fit(np.transpose(X_train), y_train, epochs=5, batch_size=256, verbose=1)
 ########===== Metrics to assess the model performance on test data ====########
 
 Acc, Recall, prec, f1_sc, kappa, mcm= Object.multi_label_confusion_matrix(y_test, y_pred)

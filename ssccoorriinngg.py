@@ -1502,7 +1502,7 @@ class ssccoorriinngg():
         
     #%% Detect and remove bad signals
     def remove_bad_signals(self, hypno_labels, input_feats):
-        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if ((j==-1) or (j==8))]
+        bad        = [i for i,j in enumerate(hypno_labels[:,0]) if ((j==-1) or (j==8) or (j==6))]
         out_feats  = np.delete(input_feats, bad, axis=2)
         out_labels = np.delete(hypno_labels, bad, axis=0)
         
