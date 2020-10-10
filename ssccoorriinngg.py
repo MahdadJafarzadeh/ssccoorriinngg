@@ -440,7 +440,7 @@ class ssccoorriinngg():
     
     
     #%% Feature extraction PER_Subject
-    def FeatureExtraction_per_subject(self, Input_data):
+    def FeatureExtraction_per_subject(self, Input_data, fs):
         
         ''' n_time_dependence_epochs: number of previous and subsequent epochs
         to consider with the current epoch to account for time-dependence'''
@@ -452,24 +452,27 @@ class ssccoorriinngg():
         T  = self.T #sec
         
         x = Input_data
-        X = x.flatten('F')
-        
-        #%% Filtering section
-        ## Defining preprocessing function ##
-        def butter_bandpass_filter(data, lowcut, highcut, fs, order = 2):
-            nyq = 0.5 * fs
-            low = lowcut /nyq
-            high = highcut/nyq
-            b, a = butter(order, [low, high], btype='band')
-            #print(b,a)
-            y = lfilter(b, a, data)
-            return y
-        
-        # Apply filter
-        X = butter_bandpass_filter(data=X, lowcut=.1, highcut=30, fs=fs, order=2)
-        
-        #%% Reshaping data per epoch
-        X = np.reshape(X, (int(len(X) / (fs*T)), fs*T))
+        X = np.transpose(x)
+# =============================================================================
+#         X = x.flatten('F')
+#         
+#         #%% Filtering section
+#         ## Defining preprocessing function ##
+#         def butter_bandpass_filter(data, lowcut, highcut, fs, order = 2):
+#             nyq = 0.5 * fs
+#             low = lowcut /nyq
+#             high = highcut/nyq
+#             b, a = butter(order, [low, high], btype='band')
+#             #print(b,a)
+#             y = lfilter(b, a, data)
+#             return y
+#         
+#         # Apply filter
+#         X = butter_bandpass_filter(data=X, lowcut=.1, highcut=30, fs=fs, order=2)
+#         
+#         #%% Reshaping data per epoch
+#         X = np.reshape(X, (int(len(X) / (fs*T)), fs*T))
+# =============================================================================
         
         #%% Feature Extraction section
         
@@ -783,10 +786,10 @@ class ssccoorriinngg():
 
             ''' Spectral edge frequency features --> SEF50 and SEF95'''
             # Imtiaz et al. proposed the freq band of investigation: 8 - 16 Hz
-            data_SEF =  butter_bandpass_filter(data=data, lowcut=8, highcut=16, fs=fs, order=2)
+            data_SEF =  self.butter_bandpass_filter(data=data, lowcut=8, highcut=16, fs=fs, order=2)
             
             # compute fft^2
-            FFT_ = abs(scipy.fft.fft(data, n = None))
+            FFT_ = abs(np.fft.fft(data, n = None))
             FFT_ = FFT_[0:int(len(FFT_)/2)+1] 
             FFT_ = abs(FFT_ ** 2)
             
@@ -832,7 +835,7 @@ class ssccoorriinngg():
                 
                 # Calculating fft
                 data_tmp = data_SEF_per_win[:,j]
-                C        = abs(scipy.fft.fft(data_tmp, n = 512))
+                C        = abs(np.fft.fft(data_tmp, n = 512))
                 C        = C[0:int(len(C)/2)+1] 
                 C        = abs(C ** 2)
                 freqs, _ = periodogram(x = data_tmp, fs = fs, nfft = 512 , window = Window)  
@@ -1545,7 +1548,7 @@ class ssccoorriinngg():
         else:
             return out_feats, out_labels
     #%% Detect and remove arousal and wake: useful for classifying only sleep stages
-    def remove_arousals(self, hypno_labels, input_feats):
+    def remove_artefact(self, hypno_labels, input_feats):
         bad        = [i for i,j in enumerate(hypno_labels[:,0]) if ((hypno_labels[i,1]==1) or (hypno_labels[i,1]==2))]
         out_feats  = np.delete(input_feats, bad, axis=2)
         out_labels = np.delete(hypno_labels, bad, axis=0)
@@ -1826,6 +1829,7 @@ class ssccoorriinngg():
         mean_prec     = np.empty((0,5))
         mean_recall   = np.empty((0,5))
         mean_f1_score = np.empty((0,5))
+        mean_kappa    = []
         
         for i in np.arange(len(metrics_per_fold)):
             itr = str(i+1)
@@ -1835,12 +1839,13 @@ class ssccoorriinngg():
             tmp_recall    = iteration_tmp[1]
             tmp_prec      = iteration_tmp[2]
             tmp_f1_score  = iteration_tmp[3]
+            tmp_kappa     = iteration_tmp[4]
             # concatenate them all per metric
             mean_acc      = np.row_stack((mean_acc, tmp_acc))
             mean_prec     = np.row_stack((mean_prec, tmp_prec))
             mean_recall   = np.row_stack((mean_recall, tmp_recall))
             mean_f1_score = np.row_stack((mean_f1_score, tmp_f1_score))
-
+            mean_kappa.append(tmp_kappa)
             # remove temp arrays
             del tmp_acc, tmp_recall, tmp_prec, tmp_f1_score
             
@@ -1849,14 +1854,16 @@ class ssccoorriinngg():
         Recall_Mean        = np.nanmean(mean_recall, axis = 0)
         Prec_Mean          = np.nanmean(mean_prec, axis = 0)
         F1_score_Mean      = np.nanmean(mean_f1_score, axis = 0)
-        
+        kappa_mean         = np.nanmean(mean_kappa)
         # Show results
         Acc_std           = np.nanstd(mean_acc, axis = 0)
         Recall_std        = np.nanstd(mean_recall, axis = 0)
         Prec_std          = np.nanstd(mean_prec, axis = 0)
         F1_score_std      = np.nanstd(mean_f1_score, axis = 0)
+        kappa_std         = np.nanstd(mean_kappa)
         # Show results
         print(f'Mean Acc, Recall, Precision, and F1-score of leave-one-out cross-validation for Wake, N1, N2, SWS, and REM, respectively:\n{Acc_Mean}\n{Recall_Mean}\n{Prec_Mean}\n{F1_score_Mean}')
+        print(f'Mean kappa: {kappa_mean}+-{kappa_std}')
         #print(f'std Acc, Recall, Precision, and F1-score of leave-one-out cross-validation for Wake, N1, N2, SWS, and REM, respectively:\n{Acc_std}\n{Recall_std}\n{Prec_std}\n{F1_score_std}')
 
         
@@ -2517,6 +2524,8 @@ class ssccoorriinngg():
                        batch_size = 512):
         
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
+        import tensorflow as tf
+        from tensorflow import keras
         from keras.models import Sequential
         from keras.layers import Dense
         from keras.layers import Flatten
@@ -2595,12 +2604,13 @@ class ssccoorriinngg():
         return y_pred
 
     #%% (CNN+LSTM) stack classifier
-    def CNN_LSTM_stack_calssifier(self, X_train, y_train, fs, n_filters = [8, 16, 32], 
+    def CNN_LSTM_stack_calssifier(self, X_train, X_test, y_train, y_test, fs,path, n_filters = [8, 16, 32], 
                         kernel_size = [50, 8, 8], LSTM_units = 64, n_LSTM_layers = 4,
                         recurrent_dropout = .3,loss='mean_squared_error', 
                         optimizer='adam',metrics = [tf.keras.metrics.Recall()],
                         epochs = 10, batch_size = 128, verbose = 1,
-                        show_summarize =True, plot_model_graph =True, show_shapes = False):
+                        show_summarize =True, plot_model_graph =True, show_shapes = False,
+                        patience = 6):
         
         """ This model has a CNN on top for feature extraction and layers of LSTM 
         at the bottom to account for time dependency.
@@ -2610,7 +2620,8 @@ class ssccoorriinngg():
         after each iteration.
         """
         # ~~~~~~~~~~~~~~~~~~~~~~~~ Importing libraries ~~~~~~~~~~~~~~~~~~~~~~ #
-        import keras
+        import tensorflow as tf
+        from tensorflow import keras
         from keras.utils import plot_model
         from keras.models import Model
         from keras.layers import Input
@@ -2620,7 +2631,8 @@ class ssccoorriinngg():
         from keras.layers.convolutional import Conv1D
         from keras.layers.pooling import MaxPooling1D
         from keras.layers import Dropout, BatchNormalization, Activation, TimeDistributed,Flatten, Bidirectional
-
+        from keras.callbacks import EarlyStopping, ModelCheckpoint
+        import pickle
         # ~~~~~~~~~~~~~~~~~~~~~~~~Defining input data~~~~~~~~~~~~~~~~~~~~~~~~ #
     
         # input is 30-s epoch of sleep (samples, timesteps, features])
@@ -2698,10 +2710,24 @@ class ssccoorriinngg():
         if show_summarize ==True:
             print(model.summary())
             
+        #callbacks
+        es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=patience)
+        mc = ModelCheckpoint(path+'best_model.h5', \
+                          monitor='val_accuracy', mode='max', verbose=1, save_best_only=True)
+            
+            
         # Fit and train
-        model.fit(np.transpose(X_train), y_train, epochs=epochs, batch_size=batch_size, verbose=verbose)
-             
-        return model
+        history = model.fit(np.transpose(X_train), y_train, epochs=epochs, validation_data=(np.transpose(X_test), y_test), batch_size=batch_size, \
+                            verbose=verbose, callbacks=[es, mc])
+               
+        #pickle best model
+        best_model = pickle.load(open(path+'best_model.h5', 'wb'))
+        Acc, Recall, prec, f1_sc, kappa, mcm= self.multi_label_confusion_matrix(y_test, best_model.predict_classes(np.transpose(X_test)))
+        
+        # Predict
+        y_pred = model.predict_classes(np.transpose(X_test))
+        
+        return y_pred, history
     
     #%% CRNN classifier (both the premodel and model training comes here)
     def CRNN_premodel_classifier(self, X_train, y_train, fs, n_filters = [8, 16, 32], 
@@ -3121,3 +3147,5 @@ class ssccoorriinngg():
             model = Model(inputs=[input_, input_], outputs=[merged])
             
         return model
+
+

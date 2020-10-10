@@ -27,11 +27,12 @@ import pickle
 
 #####===================== Reading EDF data files=========================#####
 
-pat_labels = loadtxt("/project/3013080.02/ml_project/patient_labels.txt", delimiter="\t", skiprows = 1)
+#pat_labels = loadtxt("/project/3013080.02/ml_project/patient_labels.txt", delimiter="\t", skiprows = 1)
 
 #####============= Distinguishing patients from control group=============#####
-
-gp = loadtxt("/project/3013080.02/ml_project/grouping.txt", delimiter="\t", skiprows = 1, dtype = 'str')
+main_path = "D:/Loreta_data/"
+data_path = main_path + "/data/"
+gp = loadtxt(main_path + "grouping.txt", delimiter="\t", skiprows = 1, dtype = 'str')
 subj_c = [] # Control
 subj_p = [] # Patients
 
@@ -52,14 +53,14 @@ metrics_per_fold = {}
 
 Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
 
-"""
+
 tic_tot = time.time()
 #####============= Iterate through each subject to find data =============#####
 
 for idx, c_subj in enumerate(subj_c):
     print (f'Analyzing Subject Number: {c_subj}')
     ## Read in data
-    file     = "/project/3013080.02/ml_project/test_data/LK_" + str(int(c_subj)) + "_1.EDF"
+    file     = data_path + "LK_" + str(int(c_subj)) + "_1.edf"
     tic      = time.time()
     data     = mne.io.read_raw_edf(file)
 
@@ -108,8 +109,8 @@ for idx, c_subj in enumerate(subj_c):
     
 #####===================== Reading hypnogram data ========================#####
 
-    hyp = loadtxt("/project/3013065.04/Depressed_Loreta/hypnograms/LK_" + 
-                str(int(c_subj)) + ".txt", delimiter="\t")
+    hyp = loadtxt(main_path + "hypnograms/LK_" +
+                 str(int(c_subj)) + ".txt", delimiter="\t")
     
     ### Create sepereate data subfiles based on hypnogram (N1, N2, N3, NREM, REM) 
     tic      = time.time()
@@ -138,7 +139,7 @@ for idx, c_subj in enumerate(subj_c):
     
 #####============= remove stages contaminated with arousal ===============#####      
     
-    x_tmp, y_tmp = Object.remove_arousals(hypno_labels = y_tmp, input_feats = x_tmp)
+    x_tmp, y_tmp = Object.remove_artefact(hypno_labels = y_tmp, input_feats = x_tmp)
     # Create binary labels array
     yy = Object.binary_labels_creator_categories(y_tmp)
 
@@ -176,7 +177,7 @@ path     = '/project/3013080.02/ml_project/scripts/1D_TimeSeries/features/'
 filename = 'sleep_scoring_NoArousal_Fp1-Fp2_54feats'
 Object.save_dictionary(path, filename, hyp_dic, subjects_dic)
 
-"""
+
 #%% Load featureset and labels
 path                  = '/project/3013080.02/ml_project/scripts/1D_TimeSeries/features/'
 filename              = 'sleep_scoring_NoArousal_Fp1-Fp2_54feats'

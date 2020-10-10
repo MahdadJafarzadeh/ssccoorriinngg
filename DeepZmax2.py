@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Sep 22 17:14:59 2020
-
-@author: mahda
-"""
-
-# -*- coding: utf-8 -*-
-"""
 Created on Sat Jun  6 22:41:54 2020
 
 @author: mahjaf

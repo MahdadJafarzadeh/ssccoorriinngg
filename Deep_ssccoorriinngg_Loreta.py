@@ -26,157 +26,114 @@ from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, preci
 import pandas as pd
 import tensorflow as tf
 from scipy import signal
-
 #####============= create an object of ssccoorriinngg class ==============#####
 
-Object = ssccoorriinngg(filename='', channel='', fs = 200, T = 30)
+Object = ssccoorriinngg(filename='', channel='', fs = 256, T = 30)
 
-#####==================== Defining required paths r=======================#####
-main_path = "F:/Loreta_data/"
-data_path = main_path + "/data/"
+# Define path
+main_path         = "D:/Loreta_data/features/"
+main_path         = "/project/3013080.02/Loreta_data/"
 
 # Distinguishing patients from control group 
-
 gp = loadtxt(main_path + "grouping.txt", delimiter="\t", skiprows = 1, dtype = 'str')
 subj_c = [] # Control
-subj_p = [] # Patients
 
 # Just keep controls 
 for indx, c in enumerate(gp):
     if c[1] == 'C':
         subj_c.append(int(c[0]))
+        
+#%% Load featureset and labels
+filename              =  "Loreta_EpochedDataForDeepLearning_Fp1-Fp2_RawData_NoFilter_071020"
+subjects_dic, hyp_dic = Object.load_dictionary(main_path, filename)
 
-# Init
-raw_data_dic = {}
-hyp_dic      = {}
+# train size
+train_size = .8
+n_train = round(train_size * len(subj_c))
 
-#####==================== Read and analyze EDF files ====================######
-Tic = time.time()
-for idx, c_subj in enumerate(subj_c):
-    
-    print (f'Analyzing Subject Number: {c_subj}')
-    
-    ## Read in data
-    file     = data_path + "LK_" + str(int(c_subj)) + "_1.edf"
-    tic      = time.time()
-    raw      = mne.io.read_raw_edf(file, preload = True)
-    
-    print('Time to read EDF: {}'.format(time.time()-tic))
-    
-    # plot signal
-    #raw.plot(duration = 30)
-    
-    # Retrieve info
-    DataInfo          = raw.info
-    AvailableChannels = DataInfo['ch_names']
-    fs                = int(DataInfo['sfreq'])
-    
-    # Filtering
-    f_min = .3 #Hz
-    f_max = 30 #Hz
-    tic   = time.time()
-    raw.filter(l_freq=f_min, h_freq=f_max)
-    print('Filtering time: {}'.format(time.time()-tic))
-    
-    # Get filtered data
-    filtered_data = raw.get_data()
-    
-    ## Choosing channels of interest (Fp1-M2, Fp2-M1)
-    References       = ['TP10', 'TP9'] # M2 and M1, respectively
-    RequiredChannels = ['Fp1', 'Fp2' ] 
-    
-    # Initializing index lists
-    Idx = []
-    Idx_Mastoids = []
-    
-    # Find index of required channels     
-    for indx, c in enumerate(RequiredChannels):
-        if c in AvailableChannels:
-            Idx.append(AvailableChannels.index(c))
-            
-    # Find index of refernces (e.g. Mastoids) 
-    for indx, c in enumerate(References):
-        if c in AvailableChannels:
-            Idx_Mastoids.append(AvailableChannels.index(c))
+#######=== Randomly shuffle subjects to choose train and test splits ===#######
 
-    ## Defining epoch length
-    T = 30 #secs
-    len_epoch   = fs * T
-    start_epoch = 0
-    n_channels  =  len(AvailableChannels)
-       
-    ## Cut tail; use modulo to find full epochs
-    filtered_data = filtered_data[:, 0:filtered_data.shape[1] - filtered_data.shape[1]%len_epoch]
-    
-    ## Reshape data [n_channel, len_epoch, n_epochs]
-    data_epoched = np.reshape(filtered_data,
-                              (n_channels, len_epoch,
-                               int(filtered_data.shape[1]/len_epoch)), order='F' )
-    
-    # Select channels of interest
-    data_epoched_selected = data_epoched[Idx,:,:] - data_epoched[Idx_Mastoids,:,:]
-    
-    ## Read Hypnogram
-    hyp = loadtxt(main_path + "hypnograms/LK_" +
-                 str(int(c_subj)) + ".txt", delimiter="\t")
-    
-    #####================= Find order of the selected channels ===============#####  
- 
-    #Init
-    picked_channels = []
-    picked_refs     = []
-    List_Channels   = []
-    
-    # Find main channels
-    for jj,kk in enumerate(Idx):
-        picked_channels = np.append(picked_channels, AvailableChannels[kk])
-    
-    # Show subject ID 
-    print(f'subject LK {c_subj} ... Picked channels:')
-    
-    # Find references
-    for jj,kk in enumerate(Idx_Mastoids):
-        picked_refs     = np.append(picked_refs, AvailableChannels[kk])
-        print(f'{str(picked_channels[jj])}-{str(picked_refs[jj])}')
-    
-    # Create lis of channels
-    for kk in np.arange(0, len(Idx)):
-        List_Channels = np.append(List_Channels, picked_channels[kk] + '-' + picked_refs[kk])
-    
-    #####=============== remove channels without scroing =================#####   
-    
-    # assign the init data and labels
-    x_tmp_init = data_epoched_selected
-    y_tmp_init = hyp
-    
-    # Ensure equalituy of length for arrays:
-    Object.Ensure_data_label_length(x_tmp_init, y_tmp_init)
-    
-    # Remove disconnections
-    x_tmp, y_tmp =  Object.remove_bad_signals(hypno_labels= y_tmp_init, 
-                                                input_feats=x_tmp_init) 
-    
-    #####=========== Create a one hot encoding form of labels ============##### 
+subj_c = np.random.RandomState(seed=42).permutation(subj_c)
 
-    # Create binary labels array
-    yy = Object.One_hot_encoding(y_tmp)     
-    
-    # Ensure all the input labels have a class
-    Object.Unlabaled_rows_detector(yy)
-    
-    # Defining dictionary to save hypnogram PER SUBJECT
-    hyp_dic["hyp{}".format(c_subj)] = yy
-     
-    # Defining dictionary to save EEG raw data PER SUBJECT
-    raw_data_dic["subject{}".format(c_subj)] = x_tmp
-    
-    # Removing variables for next iteration
-    del x_tmp, x_tmp_init, y_tmp, y_tmp_init, yy, raw
+#######=============== Initialize train and test arrays ================#######c
+size_raw_data = np.shape(subjects_dic['subject14'])
 
-# report total time for converting EDFs into arrays
-print(f'Total data were read in {time.time()- Tic}')
+X_train = np.empty((size_raw_data[0], size_raw_data[1], 0))
+X_test  = np.empty((size_raw_data[0], size_raw_data[1], 0))
+y_train = np.empty((0, np.shape(hyp_dic['hyp14'])[1]))
+y_test  = np.empty((0, np.shape(hyp_dic['hyp14'])[1]))
+
+########======= Picking the train subjetcs and concatenate them =======########
+tic = time.time()
+train_subjects_list = []
+for c_subj in subj_c[0:n_train]:
     
-#######====================== Save raw data as pickle ======================#####      
+    # train hypnogram
+    str_train_hyp  = 'hyp' + str(c_subj)
+    
+    # train featureset
+    str_train_feat = 'subject' + str(c_subj)
+    
+    # create template arrays for featurs and label
+    tmp_x          =  subjects_dic[str_train_feat]
+    tmp_y          =  hyp_dic[str_train_hyp]
+    
+    # Concatenate features and labels
+    X_train = np.concatenate((X_train, tmp_x), axis = 2)
+    y_train = np.row_stack((y_train, tmp_y))
+    
+    # Keep the train subject
+    train_subjects_list.append(str_train_feat)
+    del tmp_x, tmp_y
+    
+print('Training set was successfully created in : {} secs'.format(time.time()-tic))
+
+#%% ================================Test part==============================%%#
+
+########======== Picking the test subjetcs and concatenate them =======########
+tic                = time.time()
+test_subjects_list = []
+for c_subj in subj_c[n_train:]:
+   
+    # test hypnogram
+    str_test_hyp  = 'hyp' + str(c_subj)
+    
+    # test featureset
+    str_test_feat = 'subject' + str(c_subj)
+    
+    # create template arrays for featurs and  label
+    tmp_x         =  subjects_dic[str_test_feat]
+    tmp_y         =  hyp_dic[str_test_hyp]
+    
+    # Concatenate features and labels
+    X_test = np.concatenate((X_test, tmp_x), axis = 2)
+    y_test = np.row_stack((y_test, tmp_y))
+    
+    # keep the subject id
+    test_subjects_list.append(str_test_feat)
+    
+    # remove for next iteration
+    del tmp_x, tmp_y, str_test_feat, str_test_hyp
+    
+print('Test set was successfully created in : {} secs'.format(time.time()-tic))
+
+print(f'Raw train and test data were created.')
+
+# Train model and predict 
+y_pred, history = Object.CNN_LSTM_stack_calssifier(X_train, X_test, y_train, y_test, fs=200,path =main_path,\
+                                          n_filters = [8, 16, 32], 
+                                            kernel_size = [50, 8, 8], LSTM_units = 64, n_LSTM_layers = 4,
+                                            recurrent_dropout = .5,loss='categorical_crossentropy', 
+                                            optimizer='adam',metrics = ['accuracy'],
+                                            epochs = 100, batch_size = 32, verbose = 1,
+                                            show_summarize =True, plot_model_graph =False, show_shapes = False,\
+                                            patience= 6)
+
+# Save predictions
 path     = main_path  
-filename = "Loreta_Controls_Fp1-M2_&_Fp2-M1_RawData"
-Object.save_dictionary(path, filename, hyp_dic, raw_data_dic)
+filename = "y_pred_test_CNN_LSTM_Stack_Fp1-Fp2_RawData_Batch=32_epoch=100_train=80%-"
+Object.save_dictionary(path, filename, y_pred, y_test)
+
+# Prediction results
+Acc, Recall, prec, f1_sc, kappa, mcm= Object.multi_label_confusion_matrix(y_test, y_pred)
+
